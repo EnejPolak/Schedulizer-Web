@@ -1,0 +1,6 @@
+Magenta
+Purple
+#003B2F
+
+Blue
+White
