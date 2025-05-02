@@ -15,13 +15,13 @@ include 'toolbar.php';
     <style>
         /* Glavni content */
         #main-content {
-            margin-left: 260px;
-            padding: 20px;
-            font-family: 'Mukta', sans-serif;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', sans-serif;
             background: linear-gradient(135deg, #3A82F7 0%, #00C2FF 100%);
-            overflow: hidden;
-            position: relative;
+            color: black;
             min-height: 100vh;
+            padding-top: 80px;
         }
 
 

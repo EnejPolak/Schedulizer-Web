@@ -1,29 +1,9 @@
 <?php
-// aboutme.php
-session_start();
 include 'toolbar.php';
-
-// Predpostavljamo, da imamo ID uporabnika v seji
-if (!isset($_SESSION['user_id'])) {
-    die("Nisi prijavljen.");
-}
-
-$user_id = $_SESSION['user_id'];
-
-// Pridobimo podatke uporabnika iz baze
-$query = "SELECT ime, priimek, email, telefon FROM uporabniki WHERE id = :id";
-$stmt = $pdo->prepare($query);
-$stmt->bindParam(':id', $user_id, PDO::PARAM_INT);
-$stmt->execute();
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$user) {
-    die("Uporabnik ni najden.");
-}
 ?>
 
 <!DOCTYPE html>
-<html lang="sl">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -31,60 +11,134 @@ if (!$user) {
     <title>About Me</title>
 
     <style>
-        /* Dodamo osnovni stil za glavni content */
         #main-content {
-            margin-left: 260px;
-            padding: 20px;
-            font-family: 'Mukta', sans-serif;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', sans-serif;
             background: linear-gradient(135deg, #3A82F7 0%, #00C2FF 100%);
+            color: white;
             min-height: 100vh;
+            padding-top: 80px;
         }
 
-        .user-info {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            max-width: 600px;
+        h2 {
+            font-size: 28px;
+            margin-bottom: 20px;
         }
 
-        .user-info h2 {
-            margin-top: 0;
+        label {
+            display: block;
+            margin-top: 20px;
+            font-weight: 600;
+            font-size: 16px;
         }
 
-        .user-info p {
-            font-size: 18px;
-            margin: 10px 0;
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 8px;
+            border-radius: 6px;
+            border: none;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.8);
         }
 
         .reset-password-btn {
-            background-color: #00C2FF;
-            color: #fff;
+            background: linear-gradient(135deg, #ffffff, #d9f3ff);
+            color: #007aad;
             border: none;
-            padding: 10px 20px;
+            padding: 12px 24px;
             font-size: 16px;
-            border-radius: 8px;
+            font-weight: bold;
+            border-radius: 12px;
             cursor: pointer;
-            margin-top: 10px;
+            margin-top: 15px;
+            box-shadow: 0 4px 14px rgba(0, 194, 255, 0.4);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .reset-password-btn::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #00c2ff, #3a82f7);
+            transition: left 0.4s ease;
+            z-index: -1;
+        }
+
+        .reset-password-btn:hover::before {
+            left: 0;
         }
 
         .reset-password-btn:hover {
-            background-color: #008bb5;
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 194, 255, 0.6);
+        }
+
+
+        .input-wrapper {
+            margin-left: 300px;
+            /* Prestavi vse vnose desno, stran od sidebarja */
+            max-width: 500px;
+        }
+
+        .input-wrapper label {
+            display: block;
+            margin-top: 20px;
+            font-weight: 600;
+            font-size: 16px;
+            color: white;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 8px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 16px;
+        }
+
+        .input-wrapper input::placeholder {
+            color: rgba(255, 255, 255, 0.8);
         }
     </style>
 </head>
 
 <body>
 
-    <!-- Glavna vsebina About Me -->
     <div id="main-content">
-        <div class="user-info">
-            <h2><?php echo htmlspecialchars($user['ime'] . ' ' . $user['priimek']); ?></h2>
-            <p><strong>Email:</strong> <?php echo htmlspecialchars($user['email']); ?></p>
-            <p><strong>Geslo:</strong> ****** <button class="reset-password-btn">Ponastavi geslo</button></p>
-            <p><strong>Telefon:</strong> <?php echo htmlspecialchars($user['telefon']); ?></p>
+        <div class="input-wrapper">
+            <h2 style="color: white;">Full Name</h2>
+
+            <label for="email">Email:</label>
+            <input type="text" id="email" placeholder="Enter your email">
+
+            <label for="password">Password:</label>
+            <input type="password" id="password" placeholder="Enter your password">
+
+            <button class="reset-password-btn">Reset Password</button>
+
+
+            <label for="phone">Phone Number:</label>
+            <input type="text" id="phone" placeholder="Enter your phone number">
         </div>
     </div>
+
 
 </body>
 
