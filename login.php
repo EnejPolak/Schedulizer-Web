@@ -371,6 +371,8 @@
             formBoxBusiness.style.visibility = 'hidden';
             formBoxLogin.classList.add('active');
         })
+
+        formBoxLogin.classList.add('active');
     </script>
 
 </body>

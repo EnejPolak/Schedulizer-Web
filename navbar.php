@@ -30,6 +30,16 @@
             letter-spacing: 1px;
         }
 
+
+        #navbar.scrolled {
+            background: rgba(0, 123, 255, 0.25);
+            border: 1px solid rgba(0, 123, 255, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 123, 255, 0.3);
+            backdrop-filter: blur(20px);
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+
+
         #navbar .nav-left a {
             text-decoration: none;
         }
@@ -90,8 +100,21 @@
     </div>
     <nav class="nav-right">
         <a href="index.php" class="<?= ($currentPage == 'index') ? 'active' : '' ?>">HOME</a>
-        <a href="o_nas.php" class="<?= ($currentPage == 'o_nas') ? 'active' : '' ?>">ABOUT US</a>
-        <a href="treningi.php" class="<?= ($currentPage == 'treningi') ? 'active' : '' ?>">CONTACT</a>
-        <a href="prijava.php" class="<?= ($currentPage == 'prijava') ? 'active' : '' ?>">STORE</a>
+        <a href="about_us.php" class="<?= ($currentPage == 'about_us') ? 'active' : '' ?>">ABOUT US</a>
+        <a href="contact.php" class="<?= ($currentPage == 'contact') ? 'active' : '' ?>">CONTACT</a>
+        <a href="store.php" class="<?= ($currentPage == 'store') ? 'active' : '' ?>">STORE</a>
+        <a href="login.php" class="<?= ($currentPage == 'login') ? 'active' : '' ?>">LOGIN</a>
     </nav>
 </header>
+
+
+<script>
+    window.addEventListener('scroll', () => {
+        const navbar = document.getElementById('navbar');
+        if (window.scrollY > 20) {
+            navbar.classList.add('scrolled');
+        } else {
+            navbar.classList.remove('scrolled');
+        }
+    });
+</script>
