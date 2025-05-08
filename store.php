@@ -1,5 +1,4 @@
 <?php include 'navbar.php'; ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -15,10 +14,18 @@
             padding: 0;
         }
 
+        html,
         body {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
             font-family: 'Poppins', sans-serif;
             background: linear-gradient(135deg, #e0f7ff, #f0f9ff);
             color: #222;
+        }
+
+        main {
+            flex: 1;
         }
 
         .store-container {
@@ -125,7 +132,6 @@
             border: 2px solid #00C2FF;
         }
 
-
         .store-background {
             position: fixed;
             top: 0;
@@ -161,70 +167,66 @@
 </head>
 
 <body>
-
-    <div class="store-background" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;">
-
-        <!-- Mehurčki -->
-        <div class="store-bubble" style="width: 120px; height: 120px; left: 10%; animation-delay: 0s;"></div>
-        <div class="store-bubble" style="width: 60px; height: 60px; left: 30%; animation-delay: 3s;"></div>
-        <div class="store-bubble" style="width: 80px; height: 80px; left: 50%; animation-delay: 6s;"></div>
-        <div class="store-bubble" style="width: 100px; height: 100px; left: 70%; animation-delay: 9s;"></div>
-        <div class="store-bubble" style="width: 90px; height: 90px; left: 85%; animation-delay: 12s;"></div>
-    </div>
-
-    <div class="store-container">
-        <div class="store-header">
-            <h1>Choose the Right Plan for Your Team</h1>
-            <p>Compare features and find the perfect fit for your needs.</p>
+    <main>
+        <div class="store-background">
+            <div class="store-bubble" style="width: 120px; height: 120px; left: 10%; animation-delay: 0s;"></div>
+            <div class="store-bubble" style="width: 60px; height: 60px; left: 30%; animation-delay: 3s;"></div>
+            <div class="store-bubble" style="width: 80px; height: 80px; left: 50%; animation-delay: 6s;"></div>
+            <div class="store-bubble" style="width: 100px; height: 100px; left: 70%; animation-delay: 9s;"></div>
+            <div class="store-bubble" style="width: 90px; height: 90px; left: 85%; animation-delay: 12s;"></div>
         </div>
 
-        <div class="plans-grid">
-            <!-- Basic Plan -->
-            <div class="plan-card">
-                <h3>Basic</h3>
-                <div class="plan-price">Free</div>
-                <ul class="plan-features">
-                    <li><i class="fas fa-check"></i> Mark availability</li>
-                    <li><i class="fas fa-check"></i> Swap shifts</li>
-                    <li><i class="fas fa-times" style="color: red;"></i> Admin view</li>
-                    <li><i class="fas fa-times" style="color: red;"></i> Notifications</li>
-                </ul>
-                <a href="#" class="plan-btn">Start Free</a>
+        <div class="store-container">
+            <div class="store-header">
+                <h1>Choose the Right Plan for Your Team</h1>
+                <p>Compare features and find the perfect fit for your needs.</p>
             </div>
 
-            <!-- Pro Plan -->
-            <div class="plan-card highlight-plan">
-                <span class="badge">Popular</span>
-                <h3>Pro</h3>
-                <div class="plan-price">€12/month</div>
-                <ul class="plan-features">
-                    <li><i class="fas fa-check"></i> Everything in Basic</li>
-                    <li><i class="fas fa-check"></i> Admin tools</li>
-                    <li><i class="fas fa-check"></i> Weekly reports</li>
-                    <li><i class="fas fa-check"></i> Email notifications</li>
-                </ul>
-                <a href="#" class="plan-btn">Upgrade to Pro</a>
-            </div>
+            <div class="plans-grid">
+                <!-- Basic Plan -->
+                <div class="plan-card">
+                    <h3>Basic</h3>
+                    <div class="plan-price">Free</div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> Mark availability</li>
+                        <li><i class="fas fa-check"></i> Swap shifts</li>
+                        <li><i class="fas fa-times" style="color: red;"></i> Admin view</li>
+                        <li><i class="fas fa-times" style="color: red;"></i> Notifications</li>
+                    </ul>
+                    <a href="#" class="plan-btn">Start Free</a>
+                </div>
 
-            <!-- Max Plan -->
-            <div class="plan-card">
-                <h3>Max</h3>
-                <div class="plan-price">€25/month</div>
-                <ul class="plan-features">
-                    <li><i class="fas fa-check"></i> All Pro features</li>
-                    <li><i class="fas fa-check"></i> Team analytics</li>
-                    <li><i class="fas fa-check"></i> Priority support</li>
-                    <li><i class="fas fa-check"></i> Full integration</li>
-                </ul>
-                <a href="#" class="plan-btn">Go Max</a>
+                <!-- Pro Plan -->
+                <div class="plan-card highlight-plan">
+                    <span class="badge">Popular</span>
+                    <h3>Pro</h3>
+                    <div class="plan-price">€12/month</div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> Everything in Basic</li>
+                        <li><i class="fas fa-check"></i> Admin tools</li>
+                        <li><i class="fas fa-check"></i> Weekly reports</li>
+                        <li><i class="fas fa-check"></i> Email notifications</li>
+                    </ul>
+                    <a href="#" class="plan-btn">Upgrade to Pro</a>
+                </div>
+
+                <!-- Max Plan -->
+                <div class="plan-card">
+                    <h3>Max</h3>
+                    <div class="plan-price">€25/month</div>
+                    <ul class="plan-features">
+                        <li><i class="fas fa-check"></i> All Pro features</li>
+                        <li><i class="fas fa-check"></i> Team analytics</li>
+                        <li><i class="fas fa-check"></i> Priority support</li>
+                        <li><i class="fas fa-check"></i> Full integration</li>
+                    </ul>
+                    <a href="#" class="plan-btn">Go Max</a>
+                </div>
             </div>
         </div>
-    </div>
-
-
+    </main>
 
     <?php include 'footer.php'; ?>
 </body>
-
 
 </html>

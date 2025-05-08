@@ -5,6 +5,10 @@
 
 <footer class="site-footer">
     <style>
+        main {
+            flex: 1;
+        }
+
         .site-footer {
             background-color: #0b0f19;
             color: #d8e1f5;
@@ -232,10 +236,10 @@
         <div class="footer-col">
             <h4>Quick Links</h4>
             <ul>
-                <li><a href="#home">Home</a></li>
-                <li><a href="#features">Features</a></li>
-                <li><a href="#pricing">Pricing</a></li>
-                <li><a href="#faq">FAQ</a></li>
+                <li><a href="index.php">Home</a></li>
+                <li><a href="about_us.php">About Us</a></li>
+                <li><a href="store.php">Pricing</a></li>
+                <li><a href="contact.php">Contact</a></li>
             </ul>
         </div>
 

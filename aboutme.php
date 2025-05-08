@@ -131,7 +131,8 @@ include 'toolbar.php';
             <label for="password">Password:</label>
             <input type="password" id="password" placeholder="Enter your password">
 
-            <button class="reset-password-btn">Reset Password</button>
+            <button class="reset-password-btn" onclick="window.location.href='reset-password.php'">Reset Password</button>
+
 
 
             <label for="phone">Phone Number:</label>

@@ -245,7 +245,7 @@
                     <i class='bx bxs-lock-alt'></i>
                 </div>
                 <div class="forgot-link">
-                    <a href="#">Forgot Password?</a>
+                    <a href="reset-password.php">Forgot Password?</a>
                 </div>
                 <button type="submit" class="btn">Login</button>
                 <p>or login with social platforms</p>
