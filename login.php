@@ -1,10 +1,46 @@
 <?php
 session_start();
-require 'db_connect.php'; 
+require 'db_connect.php';
 
-$errors = [];
+$errors   = [];
+$action   = $_REQUEST['action']   ?? '';
+$email    = $_POST['email']       ?? '';
+$password = $_POST['password']    ?? '';
+$username = $_POST['username']    ?? '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login') {
+    $email    = trim($_POST['email']    ?? '');
+    $password = $_POST['password']      ?? '';
+
+    // basic validation
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Please enter a valid email address.';
+    } elseif ($password === '') {
+        $errors[] = 'Please enter your password.';
+    }
+
+    if (empty($errors)) {
+        // lookup user
+        $stmt = $pdo->prepare("SELECT id, password_hash, user_type 
+                               FROM users 
+                               WHERE email = ?");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user) {
+            $errors[] = 'No account found with that email.';
+        } elseif (!password_verify($password, $user['password_hash'])) {
+            $errors[] = 'Incorrect password.';
+        } else {
+            // success!
+            $_SESSION['user_id']   = $user['id'];
+            $_SESSION['user_type'] = $user['user_type'];
+            header('Location: calendar.php');
+            exit;
+        }
+    }
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'register') {
     $user_type = $_POST['user_type'] ?? 'personal';
     $email     = trim($_POST['email'] ?? '');
     $password  = $_POST['password'] ?? '';
@@ -158,14 +194,26 @@ exit;
 <div class="container">
     <!-- LOGIN -->
     <div class="form-box login">
-        <form action="#">
+     <form action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" method="POST">
+        <?php if (isset($_GET['registered'])): ?>
+  <div class="success-box" style="color:green; text-align:center; margin-bottom:1em;">
+    You’ve successfully registered! Please log in.
+  </div>
+<?php endif; ?>
+         <input type="hidden" name="action" value="login">
             <h1>Login</h1>
+            <?php if (!empty($errors) && ($_POST['action'] ?? '') === 'login'): ?>
+      <div class="error-box" style="color:red;…">
+        <?= htmlspecialchars($errors[0]) ?>
+      </div>
+    <?php endif; ?>
             <div class="input-box">
-                <input type="text" placeholder="Username" required>
+             <input type="email" name="email" placeholder="Email" required
+                    value="<?= htmlspecialchars($email ?? '') ?>">
                 <i class='bx bxs-user'></i>
             </div>
             <div class="input-box">
-                <input type="password" placeholder="Password" required>
+                <input type="password" name="password" placeholder="Password" required>
                 <i class='bx bxs-lock-alt'></i>
             </div>
             <div class="forgot-link">
@@ -186,9 +234,10 @@ exit;
     <div class="form-box register">
         <form action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" method="POST">
             <h1 style="margin-bottom: 12px;">Registration</h1>
+            <input type="hidden" name="action" value="register">
             <input type="hidden" name="user_type" value="personal">
 
-            <?php if (!empty($errors)): ?>
+            <?php if (!empty($errors) && $action === 'register'): ?>
             <div class="error-box" style="color:red; font-size:14px; margin-bottom:20px; text-align:center;">
                 <?= htmlspecialchars($errors[0]) ?>
             </div>
@@ -233,17 +282,18 @@ exit;
 </div>
 
 <script>
-const container = document.querySelector('.container');
-const registerBtn = document.querySelector('.register-btn');
-const loginBtn = document.querySelector('.login-btn');
-const formBoxLogin = document.querySelector('.form-box.login');
-const formBoxRegister = document.querySelector('.form-box.register');
+const container        = document.querySelector('.container');
+const registerBtn      = document.querySelector('.register-btn');
+const loginBtn         = document.querySelector('.login-btn');
+const formBoxLogin     = document.querySelector('.form-box.login');
+const formBoxRegister  = document.querySelector('.form-box.register');
 
 function hideAllForms() {
     formBoxLogin.classList.remove('active');
     formBoxRegister.classList.remove('active');
 }
 
+// ↔️ Toggle to Register panel
 registerBtn.addEventListener('click', () => {
     container.classList.add('active');
     hideAllForms();
@@ -251,6 +301,7 @@ registerBtn.addEventListener('click', () => {
     formBoxRegister.classList.add('active');
 });
 
+// ↔️ Toggle to Login panel
 loginBtn.addEventListener('click', () => {
     container.classList.remove('active');
     hideAllForms();
@@ -258,16 +309,27 @@ loginBtn.addEventListener('click', () => {
     formBoxLogin.classList.add('active');
 });
 
+// 📌 Default to Login panel on first load
 formBoxLogin.classList.add('active');
 
 document.addEventListener('DOMContentLoaded', () => {
     <?php if (!empty($errors)): ?>
-        container.classList.add('active');
+        // If there were any errors, show the matching panel:
         hideAllForms();
-        formBoxRegister.style.visibility = 'visible';
-        formBoxRegister.classList.add('active');
+        <?php if ($action === 'login'): ?>
+            // Login error → show Login
+            container.classList.remove('active');
+            formBoxRegister.style.visibility = 'hidden';
+            formBoxLogin.classList.add('active');
+        <?php else: /* register */ ?>
+            // Register error → show Register
+            container.classList.add('active');
+            formBoxRegister.style.visibility = 'visible';
+            formBoxRegister.classList.add('active');
+        <?php endif; ?>
     <?php endif; ?>
 });
 </script>
+
 </body>
 </html>
