@@ -1,8 +1,69 @@
 <?php
-// calendar.php
 session_start();
+require 'db_connect.php';
 include 'toolbar.php';
+
+$user_id = $_SESSION['user_id'] ?? null;
+$existingAvailability = [];
+$swapRequests = [];
+
+if ($user_id) {
+    // 🟢 Preberi obstoječo razpoložljivost
+    $stmt = $pdo->prepare("SELECT date, time, available, not_available FROM calendar WHERE users_id = ?");
+    $stmt->execute([$user_id]);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if ($row['available']) {
+            $availability = 'can';
+        } elseif ($row['not_available']) {
+            $availability = 'cant';
+        } else {
+            continue;
+        }
+
+        $existingAvailability[] = [
+            'date' => $row['date'],
+            'time' => $row['time'],
+            'availability' => $availability
+        ];
+    }
+
+    // 🟡 Swap, ki si jih TI zahteval – obarvaj rumeno/rdeče/zeleno glede na status
+    $stmt = $pdo->prepare("SELECT swap_date, swap_time, status FROM swap WHERE users_id = ? AND is_active = 1");
+    $stmt->execute([$user_id]);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if ($row['status'] === 'accepted') {
+            $availability = 'cant'; // rdeča
+        } elseif ($row['status'] === 'declined') {
+            $availability = 'can'; // nazaj v zeleno
+        } else {
+            $availability = 'swap'; // rumena
+        }
+
+        $existingAvailability[] = [
+            'date' => $row['swap_date'],
+            'time' => $row['swap_time'],
+            'availability' => $availability
+        ];
+    }
+
+    // 🟡 Pridobi aktivne swap zahteve drugih uporabnikov
+    $stmt = $pdo->prepare("
+        SELECT s.id, s.swap_date, s.swap_time, s.reason
+        FROM swap s
+        WHERE s.users_id != ?
+          AND s.is_active = 1
+          AND NOT EXISTS (
+              SELECT 1 FROM swap_responses r
+              WHERE r.swap_id = s.id AND r.user_id = ?
+          )
+    ");
+    $stmt->execute([$user_id, $user_id]);
+    $swapRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
+
+
+
 
 <!DOCTYPE html>
 <html lang="sl">
@@ -657,8 +718,8 @@ include 'toolbar.php';
             </div>
 
             <div class="radio-options">
-                <label><input type="radio" name="availability" value="can"> Can</label>
-                <label><input type="radio" name="availability" value="cant"> I can't</label>
+                <label><input type="radio" name="availability" value="can"> Available</label>
+                <label><input type="radio" name="availability" value="cant"> Unavailable</label>
                 <label><input type="radio" name="availability" value="swap" id="swap-radio"> Swap</label>
                 <label><input type="radio" name="availability" value="holiday"> Holiday</label>
             </div>
@@ -679,7 +740,28 @@ include 'toolbar.php';
 
         </div>
 
-        <div id="swapRequestsContainer" style="margin-top: 40px;"></div>
+        <div id="swapRequestsContainer" style="margin-top: 40px;">
+            <script>
+                document.addEventListener("DOMContentLoaded", () => {
+                    const slotMap = {
+                        "07:00:00": 0,
+                        "11:00:00": 1,
+                        "15:00:00": 2
+                    };
+                    <?php foreach ($swapRequests as $req): ?>
+                            (function() {
+                                const dayIndex = new Date("<?= $req['swap_date'] ?>").getDay();
+                                const slotIndex = slotMap["<?= $req['swap_time'] ?>"];
+                                const realDay = dayIndex === 0 ? 6 : dayIndex;
+                                const cellIndex = slotIndex * 7 + realDay;
+                                addSwapRequest(cellIndex, "<?= htmlspecialchars($req['reason']) ?>", <?= $req['id'] ?>);
+                            })();
+                    <?php endforeach; ?>
+                });
+            </script>
+
+        </div>
+
 
         <!-- Swap Reason Modal -->
         <!-- Swap Reason Modal -->
@@ -701,6 +783,13 @@ include 'toolbar.php';
 
 
     <script>
+        const preloadedAvailability = <?php echo json_encode($existingAvailability); ?>;
+        const activeSwapMap = new Map();
+
+
+
+
+
         // — Helpers za barvanje in swap-gumb —
         function updateSwapButton() {
             const anyCan = cells.some(cell => isGreen(cell));
@@ -809,12 +898,33 @@ include 'toolbar.php';
                 }
                 cell.style.opacity = '1';
             });
+
             document.querySelectorAll('input[name="availability"]').forEach(radio => {
                 radio.disabled = isPastWeek;
             });
             document.querySelector('.send-schedule-btn').disabled = isPastWeek;
+
+            // ✅ Obarvaj celice iz baze za trenutni teden
+            preloadedAvailability.forEach(entry => {
+                const dateParts = entry.date.split('-');
+                const entryDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+
+                if (entryDate >= monday && entryDate <= new Date(monday.getTime() + 6 * 86400000)) {
+                    const dayIndex = entryDate.getDay() === 0 ? 6 : entryDate.getDay() - 1;
+                    const slotIndex = entry.time === "07:00:00" ? 0 :
+                        entry.time === "11:00:00" ? 1 :
+                        entry.time === "15:00:00" ? 2 : null;
+
+                    if (slotIndex !== null) {
+                        const cellIndex = slotIndex * 7 + dayIndex;
+                        colorCell(cells[cellIndex], entry.availability);
+                    }
+                }
+            });
+
             updateSwapButton();
         }
+
 
         function changeWeek(amount) {
             if (unsavedChanges) {
@@ -852,7 +962,7 @@ include 'toolbar.php';
                     e.preventDefault();
                     // resetiraj radio na prejšnjega
                     if (prevAvailability) {
-                        document.querySelector(`input[value="${prevAvailability}"]`).checked = true;
+                        document.querySelector(input[value = "${prevAvailability}"]).checked = true;
                     } else {
                         this.checked = false;
                     }
@@ -955,18 +1065,57 @@ include 'toolbar.php';
                             return;
                         }
 
+                        // 🔁 Pridobi datum in čas za to celico
+                        const cellIndex = cells.indexOf(lastSelectedGreenCell);
+                        const dayIndex = cellIndex % 7;
+                        const slotIndex = Math.floor(cellIndex / 7);
+                        const swapDate = getDateFromIndex(dayIndex);
+                        const swapTime = getTimeFromSlot(slotIndex);
+
+                        // ✉️ Pošlji podatke v bazo
+                        fetch('save_swap.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    date: swapDate,
+                                    time: swapTime,
+                                    reason: reason
+                                })
+                            })
+                            .then(res => res.json())
+                            .then(res => {
+                                if (!res.success) {
+                                    alert("❌ Failed to save swap request: " + res.error);
+                                }
+                            });
+
+                        // 🔄 Vizualne spremembe
                         colorCell(lastSelectedGreenCell, 'swap');
-                        unsavedChanges = true;
+                        unsavedChanges = false;
                         updateSwapButton();
 
                         // 🆕 Dodaj zahtevo pod koledar
-                        addSwapRequest(cells.indexOf(lastSelectedGreenCell), reason);
+                        fetch('session_user_id.php') // ustvari nov PHP endpoint, ki vrne session user_id
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data && data.user_id !== undefined) {
+                                    const currentUserId = data.user_id;
+
+                                    // Če swap ni od tebe (trenutnega uporabnika), prikaži
+                                    if (false) {
+                                        addSwapRequest(cellIndex, reason);
+                                    }
+                                }
+                            });
 
                         // Počisti modal
                         swapReasonText.value = '';
                         swapReasonModal.style.display = 'none';
                         lastSelectedGreenCell = null;
                     };
+
 
 
                     return;
@@ -983,15 +1132,76 @@ include 'toolbar.php';
         });
 
         // — Ostale funkcije za popup in picker (pusti nespremenjeno) —
-        function sendSchedule() {
-            unsavedChanges = false;
-            document.getElementById("popup").textContent = "✅ Schedule sent successfully!";
-            document.getElementById("popup").className = "popup-message";
-            document.getElementById("popup").style.display = "block";
-            setTimeout(() => document.getElementById("popup").style.display = "none", 1000);
-            hideOverlay();
-            updateSwapButton();
+        function getAvailabilityFromColor(cell) {
+            const bg = window.getComputedStyle(cell).backgroundColor;
+            if (bg === 'rgb(195, 247, 195)') return 'can'; // green
+            if (bg === 'rgb(247, 195, 195)') return 'cant'; // red
+            return null;
         }
+
+        function getDateFromIndex(dayIndex) {
+            const monday = getMonday(currentDate);
+            monday.setDate(monday.getDate() + dayIndex);
+            return monday.toISOString().split('T')[0]; // npr. "2025-05-10"
+        }
+
+        function getTimeFromSlot(slotIndex) {
+            const slots = ["07:00:00", "11:00:00", "15:00:00"];
+            return slots[slotIndex];
+        }
+
+        function sendSchedule() {
+            const dataToSend = [];
+
+            cells.forEach((cell, index) => {
+                let availability = getAvailabilityFromColor(cell);
+
+                // Če ni označeno, avtomatsko obarvaj in pošlji kot 'cant'
+                if (!availability) {
+                    availability = 'cant';
+                    colorCell(cell, 'cant'); // tudi vizualno obarvamo
+                }
+
+                const dayIndex = index % 7;
+                const slotIndex = Math.floor(index / 7);
+
+                const date = getDateFromIndex(dayIndex);
+                const time = getTimeFromSlot(slotIndex);
+
+                dataToSend.push({
+                    date,
+                    time,
+                    availability
+                });
+            });
+
+            fetch('save_schedule.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(dataToSend)
+                })
+                .then(res => res.json())
+                .then(res => {
+                    if (res.success) {
+                        document.getElementById("popup").textContent = "✅ Schedule saved!";
+                        document.getElementById("popup").className = "popup-message";
+                        document.getElementById("popup").style.display = "block";
+                        setTimeout(() => document.getElementById("popup").style.display = "none", 1000);
+                        unsavedChanges = false;
+                        hideOverlay();
+                    } else {
+                        alert("❌ Napaka pri shranjevanju: " + res.error);
+                    }
+                })
+                .catch(err => {
+                    console.error('Napaka:', err);
+                    alert("❌ Napaka pri pošiljanju podatkov.");
+                });
+        }
+
+
 
         function showUnsavedWarning() {
             document.getElementById("overlay").style.display = "block";
@@ -1032,23 +1242,28 @@ include 'toolbar.php';
                 .map(y => `<div class="year-option" onclick="selectYear(${y})">${y}</div>`)
                 .join('');
 
+            const monthOptions = ['Januar', 'Februar', 'Marec', 'April', 'Maj', 'Junij', 'Julij', 'Avgust', 'September', 'Oktober', 'November', 'December']
+                .map((m, i) => `<div onclick="selectMonth(${i})">${m}</div>`)
+                .join('');
+
             calendarDiv.innerHTML = `
-    <div class="calendar-close-btn" onclick="closeSmallCalendar()">✖</div>
-    <h3 id="selectedYear" onclick="toggleYearDropdown()" style="cursor:pointer;">
-      ${calendarYear} ▼
-    </h3>
-    <div id="yearDropdown" class="year-dropdown" style="display:none;">
-      ${yearOptions}
-    </div>
-    <div class="month-grid">
-      ${['Januar','Februar','Marec','April','Maj','Junij','Julij','Avgust','September','Oktober','November','December']
-        .map((m,i) => `<div onclick="selectMonth(${i})">${m}</div>`).join('')}
-    </div>
-  `;
+        <div class="calendar-close-btn" onclick="closeSmallCalendar()">✖</div>
+        <h3 id="selectedYear" onclick="toggleYearDropdown()" style="cursor:pointer;">
+            ${calendarYear} ▼
+        </h3>
+        <div id="yearDropdown" class="year-dropdown" style="display:none;">
+            ${yearOptions}
+        </div>
+        <div class="month-grid">
+            ${monthOptions}
+        </div>
+    `;
+
             document.getElementById('calendarOverlay').style.display = "block";
             calendarDiv.style.display = "block";
             calendarMode = 'year';
         }
+
 
         function toggleYearDropdown() {
             const dropdown = document.getElementById('yearDropdown');
@@ -1060,6 +1275,7 @@ include 'toolbar.php';
             document.querySelector('#smallCalendar h3').innerHTML = `${calendarYear} ▼`;
             toggleYearDropdown();
         }
+
 
         function changeYear(amount) {
             calendarYear += amount;
@@ -1074,22 +1290,28 @@ include 'toolbar.php';
         function showMonthDays(year, month) {
             const calendarDiv = document.getElementById('smallCalendar');
             const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const monthName = ['Januar', 'Februar', 'Marec', 'April', 'Maj', 'Junij', 'Julij', 'Avgust', 'September', 'Oktober', 'November', 'December'][month];
+            const monthName = [
+                'Januar', 'Februar', 'Marec', 'April', 'Maj', 'Junij',
+                'Julij', 'Avgust', 'September', 'Oktober', 'November', 'December'
+            ][month];
 
             let html = `
-    <div class="calendar-close-btn" onclick="closeSmallCalendar()">✖</div>
-    <h3>${monthName} ${year}</h3>
-    <div class="navigation">
-      <button onclick="showYearPicker()">⬅ Back</button>
-    </div>
-    <div class="day-grid">
-  `;
+        <div class="calendar-close-btn" onclick="closeSmallCalendar()">✖</div>
+        <h3>${monthName} ${year}</h3>
+        <div class="navigation">
+            <button onclick="showYearPicker()">⬅ Back</button>
+        </div>
+        <div class="day-grid">
+    `;
+
             for (let day = 1; day <= daysInMonth; day++) {
                 html += `<div onclick="selectDate(${year}, ${month}, ${day})">${day}</div>`;
             }
+
             html += `</div>`;
             calendarDiv.innerHTML = html;
         }
+
 
         function selectDate(year, month, day) {
             currentDate = new Date(year, month, day);
@@ -1104,44 +1326,90 @@ include 'toolbar.php';
 
 
 
-        function addSwapRequest(cellIndex, reason) {
+        function addSwapRequest(cellIndex, reason, swapId) {
             const slotLabels = ["7:00–15:00", "11:00–18:00", "15:00–22:00"];
             const dayIndex = cellIndex % 7;
             const slotIndex = Math.floor(cellIndex / 7);
 
             const header = document.getElementById('day' + dayIndex);
             const dateText = header.textContent.split('\n')[1] || header.innerHTML.split('<br>')[1];
-
             const container = document.getElementById("swapRequestsContainer");
 
             const item = document.createElement("div");
             item.className = "swap-request-item";
             item.innerHTML = `
-    <strong>Date:</strong> ${dateText} &nbsp;&nbsp;
-    <strong>Shift:</strong> ${slotLabels[slotIndex]}<br>
-    <strong>Reason:</strong> ${reason}
-    <div class="swap-request-buttons">
-      <button class="accept-btn">✅ Accept</button>
-      <button class="decline-btn">❌ Decline</button>
-    </div>
-  `;
+        <strong>Date:</strong> ${dateText}<br>
+        <strong>Shift:</strong> ${slotLabels[slotIndex]}<br>
+        <strong>Reason:</strong> ${reason}
+        <div class="swap-actions">
+            <button class="accept-btn">✅ Accept</button>
+            <button class="decline-btn">❌ Decline</button>
+        </div>
+    `;
 
             container.appendChild(item);
 
-            // Buttons
             const acceptBtn = item.querySelector(".accept-btn");
             const declineBtn = item.querySelector(".decline-btn");
 
             acceptBtn.onclick = () => {
-                cells[cellIndex].style.backgroundColor = '#c3f7c3';
-                cells[cellIndex].style.borderColor = 'green';
-                item.remove();
+                fetch('respond_swap.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            swap_id: swapId,
+                            action: 'accept'
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(res => {
+                        if (res.success && res.accepted) {
+                            cells[cellIndex].style.backgroundColor = '#c3f7c3';
+                            cells[cellIndex].style.borderColor = 'green';
+
+                            // Označi vse 'swap' celice kot rdeče (zahtevalec)
+                            cells.forEach(c => {
+                                if (c.style.backgroundColor === 'rgb(255, 243, 195)') {
+                                    c.style.backgroundColor = '#f7c3c3';
+                                    c.style.borderColor = 'red';
+                                }
+                            });
+
+                            item.remove();
+                        }
+                    });
             };
 
             declineBtn.onclick = () => {
-                item.remove();
+                fetch('respond_swap.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            swap_id: swapId,
+                            action: 'decline'
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(res => {
+                        if (res.success && res.final) {
+                            cells.forEach(c => {
+                                if (c.style.backgroundColor === 'rgb(255, 243, 195)') {
+                                    c.style.backgroundColor = '#c3f7c3';
+                                    c.style.borderColor = 'green';
+                                }
+                            });
+                        }
+                        item.remove();
+                    });
             };
         }
+
+
+
 
 
 
@@ -1379,6 +1647,79 @@ include 'toolbar.php';
                 }, 500);
             }
         });
+
+        function refreshSwapStatus() {
+            if (activeSwapMap.size === 0) return;
+
+            fetch('check_swap_status.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ids: Array.from(activeSwapMap.keys())
+                    })
+                })
+                .then(res => res.json())
+                .then(statuses => {
+                    for (const swapId in statuses) {
+                        const info = statuses[swapId];
+                        const cellIndex = activeSwapMap.get(parseInt(swapId));
+                        const cell = cells[cellIndex];
+
+                        const currentUserId = <?= json_encode($user_id); ?>;
+                        const isRequester = info.requester_id === currentUserId;
+
+                        if (info.status === 'accepted') {
+                            if (isRequester) {
+                                cell.style.backgroundColor = '#e74c3c';
+                            } else {
+                                cell.style.backgroundColor = '#2ecc71';
+                            }
+                        } else if (info.status === 'declined') {
+                            if (isRequester) {
+                                cell.style.backgroundColor = '#2ecc71';
+                            }
+                        } else if (info.status === 'pending') {
+                            if (isRequester) {
+                                cell.style.backgroundColor = '#f1c40f';
+                            }
+                        }
+                    }
+                });
+        }
+
+
+
+        setInterval(() => {
+            fetch('fetch_swap_requests.php')
+                .then(res => res.json())
+                .then(data => {
+                    if (!Array.isArray(data)) return;
+
+                    const container = document.getElementById("swapRequestsContainer");
+
+                    // Počisti vse obstoječe kartice
+                    container.innerHTML = "";
+
+                    const slotMap = {
+                        "07:00:00": 0,
+                        "11:00:00": 1,
+                        "15:00:00": 2
+                    };
+
+                    data.forEach(req => {
+                        const date = new Date(req.swap_date);
+                        const dayIndex = date.getDay();
+                        const realDay = (dayIndex + 6) % 7;
+                        const slotIndex = slotMap[req.swap_time];
+                        const cellIndex = slotIndex * 7 + realDay;
+
+                        activeSwapMap.set(req.id, cellIndex); // ⬅️ TO DODAJ
+                        addSwapRequest(cellIndex, req.reason, req.id); // ta vrstica JE
+                    });
+                });
+        }, 1000); // vsako sekundo
     </script>
 
 
