@@ -1,18 +1,47 @@
 <?php
+session_start();
+require 'db_connect.php';
+
+// 1) Redirect to login if not authenticated
+if (empty($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+// 2) Figure out this user’s company
+$stmt = $pdo->prepare("
+    SELECT company_id
+      FROM user_companies
+     WHERE user_id = ?
+     LIMIT 1
+");
+$stmt->execute([$_SESSION['user_id']]);
+$companyId = $stmt->fetchColumn();
+
+// if no company, bounce back
+if (! $companyId) {
+    header('Location: no_group.php');
+    exit;
+}
+
+// 2a) Fetch the company’s name
+$cstmt = $pdo->prepare("SELECT name FROM companies WHERE id = ?");
+$cstmt->execute([$companyId]);
+$companyName = $cstmt->fetchColumn();
+
 include 'toolbar.php';
 
-// Fetch this user’s company name
-$pdo; // from toolbar.php you have $pdo
-$stmt = $pdo->prepare("
-  SELECT c.name
-    FROM companies c
-    JOIN user_companies uc ON uc.company_id = c.id
-   WHERE uc.user_id = ?
-   LIMIT 1
+// 3) Fetch all members of that company
+$membersStmt = $pdo->prepare("
+    SELECT u.username, u.user_role, u.phone
+      FROM users u
+      JOIN user_companies uc ON uc.user_id = u.id
+     WHERE uc.company_id = ?
 ");
-$stmt->execute([ $_SESSION['user_id'] ]);
-$companyName = $stmt->fetchColumn() ?: 'Your Group';
+$membersStmt->execute([$companyId]);
+$members = $membersStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
+
 <!DOCTYPE html>
 <html lang="sl">
 
@@ -29,6 +58,9 @@ $companyName = $stmt->fetchColumn() ?: 'Your Group';
             min-height: 100vh;
             padding-top: 80px;
         }
+.label {
+  font-weight: 600;
+}
 
         .container {
             max-width: 800px;
@@ -107,19 +139,27 @@ $companyName = $stmt->fetchColumn() ?: 'Your Group';
         }
     </style>
 </head>
-
 <body>
-    <div id="main-content">
-        <div class="container">
-            <h1><?= htmlspecialchars($companyName) ?></h1>
-            <div class="user-list">
-                <!-- Tu se bodo kasneje dodali člani skupine -->
-                <div class="user-card">Uporabnik 1</div>
-                <div class="user-card">Uporabnik 2</div>
-                <div class="user-card">Uporabnik 3</div>
-            </div>
-        </div>
+  <div id="main-content">
+    <div class="container">
+       <h1>
+        <?= htmlspecialchars($companyName ?? 'Your Company') ?> Team Members
+      </h1>
+      <div class="user-list">
+        <?php foreach($members as $m): 
+            // split username "first.last" into "First Last"
+            $parts = explode('.', $m['username']);
+            $displayName = ucfirst($parts[0]) . (isset($parts[1]) ? ' '.ucfirst($parts[1]) : '');
+            $phone = !empty($m['phone']) ? htmlspecialchars($m['phone']) : '—';
+        ?>
+          <div class="user-card">
+            <h3><?= htmlspecialchars($displayName) ?></h3>
+            <p><span class="label">Role:</span> <?= htmlspecialchars($m['user_role']) ?></p>
+            <p><span class="label">Phone:</span> <?= $phone ?></p>
+          </div>
+        <?php endforeach; ?>
+      </div>
     </div>
+  </div>
 </body>
-
 </html>

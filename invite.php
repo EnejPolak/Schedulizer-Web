@@ -2,18 +2,31 @@
 session_start();
 require 'db_connect.php';
 
-// 🔐 Preveri, če je admin ali moderator
-$role = null;
-if (isset($_SESSION['user_id'])) {
+// 1) Fetch the current user’s role & company
+$role = $companyId = null;
+if (!empty($_SESSION['user_id'])) {
+    // role
     $stmt = $pdo->prepare("SELECT user_role FROM users WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $role = $stmt->fetchColumn();
+
+    // company
+    $c = $pdo->prepare("
+      SELECT company_id 
+        FROM user_companies 
+       WHERE user_id = ?
+       LIMIT 1
+    ");
+    $c->execute([ $_SESSION['user_id'] ]);
+    $companyId = $c->fetchColumn();
 }
 
-if (!in_array($role, ['admin', 'moderator', 'Premium'])) {
+// 2) Only admins/mods/Premium can invite
+if (!in_array($role, ['admin','moderator','Premium'], true)) {
     header("Location: calendar.php");
     exit;
 }
+
 include 'toolbar.php';
 ?>
 
@@ -172,16 +185,71 @@ include 'toolbar.php';
         </form>
 
         <?php
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['invite_email'])) {
-            $email = htmlspecialchars(trim($_POST['invite_email']));
-            $fakeToken = bin2hex(random_bytes(8));
-            $inviteLink = "https://schedulizer.eu/register.php?invite=$fakeToken";
-            echo "
-            <div class='link-box'>
-                🔗 Invite Link:<br><strong>$inviteLink</strong>
-            </div>";
+    if ($_SERVER['REQUEST_METHOD'] === 'POST'
+        && !empty($_POST['invite_email'])) 
+    {
+        $email = trim($_POST['invite_email']);
+
+        
+        $stmtU = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+        $stmtU->execute([$email]);
+        $recipientId = $stmtU->fetchColumn();
+
+        if (!$recipientId) {
+            echo "<div class='link-box' style='color:salmon'>
+                    ❌ No user found with email “".htmlspecialchars($email)."”
+                  </div>";
+        } else {
+            
+            $letters = substr(str_shuffle(
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+               .'abcdefghijklmnopqrstuvwxyz'
+            ), 0, 8);
+            $numbers = str_pad(
+                (string) random_int(0, 99999999),
+                8, '0', STR_PAD_LEFT
+            );
+            $token = $letters.$numbers;
+            $ins = $pdo->prepare("
+  INSERT INTO invite_tokens
+    (token, sender_id, recipient_id, company_id)
+  VALUES (?, ?, ?, ?)
+");
+$ins->execute([
+  $token,
+  $_SESSION['user_id'],
+  $recipientId,
+  $companyId
+]);
+$cstmt = $pdo->prepare("SELECT name FROM companies WHERE id = ?");
+        $cstmt->execute([$companyId]);
+        $companyName = $cstmt->fetchColumn();
+
+            $sender = urlencode($_SESSION['username']);
+            $inviteLink = sprintf(
+              "https://schedulizer.eu/register.php?invite=%s&from=%s&company=%s",
+              $token, $sender, $companyId
+            );
+
+            
+            $subject = "Your Schedulizer invite for “{$companyName}”";
+        $body    = "Hello,\n\n"
+                 . ucfirst($_SESSION['username'])
+                 . " has invited you to join the “{$companyName}” team on Schedulizer.\n\n"
+                 . "Your invite code is:\n\n"
+                 . "$token\n\n"
+                 . "Go to Schedulizer and paste it under “Enter a code you got” to join.\n\n"
+                 . "— The Schedulizer Team";
+        @mail($email, $subject, $body);
+
+
+echo "<div class='link-box'>
+        ✅ Invite token sent to “" . htmlspecialchars($email) . "”!
+      </div>";
+
         }
-        ?>
+    }
+    ?>
     </div>
 
 </body>

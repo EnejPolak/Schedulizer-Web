@@ -52,37 +52,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // C) Company (free-text), admins only
+        // C) Company (free-text), admins only
     $roleStmt = $pdo->prepare("SELECT user_role FROM users WHERE id = ?");
     $roleStmt->execute([$_SESSION['user_id']]);
     $userRole = $roleStmt->fetchColumn();
 
     if ( in_array($userRole, ['admin','Premium'], true)
-  && array_key_exists('company', $_POST)
-) {
-        $companyName = trim($_POST['company']);
-        // remove existing link
-        $pdo->prepare("DELETE FROM user_companies WHERE user_id = ?")
-            ->execute([$_SESSION['user_id']]);
+      && array_key_exists('company', $_POST)
+    ) {
+        $newName = trim($_POST['company']);
 
-        if ($companyName !== '') {
-            // find or create company
-            $cStmt = $pdo->prepare("SELECT id FROM companies WHERE name = ?");
-            $cStmt->execute([$companyName]);
-            $companyId = $cStmt->fetchColumn();
+        // 1) Find the existing company link (if any)
+        $stmtC = $pdo->prepare("
+            SELECT uc.company_id
+              FROM user_companies uc
+             WHERE uc.user_id = ?
+             LIMIT 1
+        ");
+        $stmtC->execute([$_SESSION['user_id']]);
+        $existingCompanyId = $stmtC->fetchColumn();
 
-            if (!$companyId) {
-                $pdo->prepare("INSERT INTO companies (name) VALUES (?)")
-                    ->execute([$companyName]);
-                $companyId = $pdo->lastInsertId();
+        if ($newName === '') {
+            // if they cleared the field, just unlink
+            if ($existingCompanyId) {
+                $pdo->prepare("DELETE FROM user_companies WHERE user_id = ?")
+                    ->execute([$_SESSION['user_id']]);
             }
-
-            // link user ↔ company
-            $pdo->prepare(
-                "INSERT INTO user_companies (user_id, company_id) VALUES (?, ?)"
-            )->execute([$_SESSION['user_id'], $companyId]);
+        } else {
+            if ($existingCompanyId) {
+                // update the existing company’s name
+                $pdo->prepare("UPDATE companies SET name = ? WHERE id = ?")
+                    ->execute([$newName, $existingCompanyId]);
+            } else {
+                // no existing link – create a new company + link
+                $pdo->prepare("INSERT INTO companies (name) VALUES (?)")
+                    ->execute([$newName]);
+                $newCompanyId = $pdo->lastInsertId();
+                $pdo->prepare("INSERT INTO user_companies (user_id, company_id) VALUES (?, ?)")
+                    ->execute([$_SESSION['user_id'], $newCompanyId]);
+            }
         }
     }
+
 
     header("Location: aboutme.php");
     exit;
