@@ -20,7 +20,7 @@ if (!empty($_SESSION['user_id'])) {
           FROM users
          WHERE id = ?
     ");
-    $stmt->execute([ $_SESSION['user_id'] ]);
+    $stmt->execute([$_SESSION['user_id']]);
     $u = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($u) {
@@ -40,6 +40,7 @@ if (!empty($_SESSION['user_id'])) {
 <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 <link rel="stylesheet" href="https://unpkg.com/intro.js/minified/introjs.min.css" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/intro.js/minified/intro.min.js"></script>
 
 <style>
@@ -178,99 +179,206 @@ if (!empty($_SESSION['user_id'])) {
             transform: translateY(0);
         }
     }
+
+    .tutorial-modal {
+        display: none;
+        position: fixed;
+        z-index: 9999;
+        left: 0;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.6);
+        justify-content: center;
+        align-items: center;
+        font-family: 'Poppins', sans-serif;
+        animation: fadeIn 0.4s ease;
+    }
+
+    .tutorial-modal-content {
+        background: white;
+        padding: 30px;
+        border-radius: 15px;
+        text-align: center;
+        width: 90%;
+        max-width: 400px;
+        color: #002B5B;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+        position: relative;
+    }
+
+    .tutorial-modal-content h2 {
+        font-size: 22px;
+        margin-bottom: 20px;
+        font-weight: 600;
+    }
+
+    .tutorial-modal-content button {
+        display: block;
+        width: 100%;
+        margin: 10px 0;
+        padding: 12px 20px;
+        border: none;
+        background: linear-gradient(to right, #3A82F7, #00C2FF);
+        color: white;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+
+    .tutorial-modal-content button:hover {
+        background: linear-gradient(to right, #00C2FF, #3A82F7);
+        transform: scale(1.03);
+    }
+
+    .tutorial-close {
+        position: absolute;
+        top: 12px;
+        right: 15px;
+        font-size: 22px;
+        font-weight: bold;
+        color: #555;
+        cursor: pointer;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
 </style>
 
 <div id="toolbar-container">
-  <div id="sidebar">
-    <div class="sidebar-top">
-      <div class="sidebar-title">SHEDULIZER</div>
-      <a href="aboutme.php"   id="link-o-meni">ABOUT ME</a>
-      <a href="calendar.php"  id="link-koledar">CALENDAR</a>
-      <a href="settings.php"  id="link-nastavitve">SETTINGS</a>
-      <a href="group.php"     id="link-skupina">GROUP</a>
-      <?php if ($role === 'admin' || $role === 'moderator'): ?>
-        <a href="invite.php"  id="link-invite">INVITE USERS</a>
-      <?php endif; ?>
-    </div>
-
-    <button class="tutorial-button-bottom" onclick="openTutorialModal()">ðŸ“– How it works?</button>
-
-    <div class="sidebar-bottom">
-      <div class="user-card" id="userCard">
-        <div class="user-info-row" id="userInfo">
-          <img
-            src="<?= htmlspecialchars($avatarUrl) ?>"
-            alt="User Avatar"
-            style="width:30px;height:30px;border-radius:50%;object-fit:cover;"
-          >
-          <div class="user-name">
-            <?php
-              if ($username !== '') {
-                  $parts = explode('.', $username);
-                  echo ucfirst($parts[0])
-                     . (isset($parts[1]) ? ' '.ucfirst($parts[1]) : '');
-              } else {
-                  echo "Guest";
-              }
-            ?>
-          </div>
+    <div id="sidebar">
+        <div class="sidebar-top">
+            <div class="sidebar-title">SHEDULIZER</div>
+            <a href="aboutme.php" id="link-o-meni">ABOUT ME</a>
+            <a href="calendar.php" id="link-koledar">CALENDAR</a>
+            <a href="settings.php" id="link-nastavitve">SETTINGS</a>
+            <a href="group.php" id="link-skupina">GROUP</a>
+            <?php if ($role === 'admin' || $role === 'moderator'): ?>
+                <a href="invite.php" id="link-invite">INVITE USERS</a>
+            <?php endif; ?>
         </div>
-        <div class="logout-text" id="logoutText">
-          <i class="fas fa-right-from-bracket"></i> <span>Log out</span>
+
+        <button class="tutorial-button-bottom" onclick="openTutorialModal()">📘 How it works?</button>
+
+        <div class="sidebar-bottom">
+            <div class="user-card" id="userCard">
+                <div class="user-info-row" id="userInfo">
+                    <img
+                        src="<?= htmlspecialchars($avatarUrl) ?>"
+                        alt="User Avatar"
+                        style="width:30px;height:30px;border-radius:50%;object-fit:cover;">
+                    <div class="user-name">
+                        <?php
+                        if ($username !== '') {
+                            $parts = explode('.', $username);
+                            echo ucfirst($parts[0])
+                                . (isset($parts[1]) ? ' ' . ucfirst($parts[1]) : '');
+                        } else {
+                            echo "Guest";
+                        }
+                        ?>
+                    </div>
+                </div>
+                <div class="logout-text" id="logoutText">
+                    <i class="fas fa-right-from-bracket"></i> <span>Log out</span>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
-  </div>
 </div>
 
 <!-- modal + JS untouched -->
 
 
 <!-- Modal -->
-<div class="tutorial-modal" id="tutorialModal" style="display:none;">
-  <div class="tutorial-modal-content">
-    <h2>What would you like to see?</h2>
-    <button onclick="startToolbarTour()">Ã°Å¸Â§Â­ Just the Toolbar</button>
-    <button onclick="goToCalendar()">Ã°Å¸â€œâ€¦ Calendar Tutorial</button>
-  </div>
+<!-- Modal (OUTSIDE SIDEBAR!) -->
+<div class="tutorial-modal" id="tutorialModal">
+    <div class="tutorial-modal-content">
+        <span class="tutorial-close" onclick="closeTutorialModal()">×</span>
+        <h2>What would you like to see?</h2>
+        <button onclick="startToolbarTour()">⏱️ Just the Toolbar</button>
+        <button onclick="goToCalendar()">📅 Calendar Tutorial</button>
+    </div>
 </div>
+
 
 <!-- JS Logic -->
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-  const userCard  = document.getElementById("userCard");
-  const userInfo  = document.getElementById("userInfo");
-  const logoutText= document.getElementById("logoutText");
+    document.addEventListener("DOMContentLoaded", function() {
+        const userCard = document.getElementById("userCard");
+        const userInfo = document.getElementById("userInfo");
+        const logoutText = document.getElementById("logoutText");
 
-  userInfo.addEventListener("click", () => {
-    userCard.classList.toggle("clicked");
-  });
+        userInfo.addEventListener("click", () => {
+            userCard.classList.toggle("clicked");
+        });
 
-  logoutText.addEventListener("click", e => {
-    e.stopPropagation();
-    window.location.href = "logout.php";
-  });
+        logoutText.addEventListener("click", e => {
+            e.stopPropagation();
+            window.location.href = "logout.php";
+        });
 
-  document.querySelectorAll('#sidebar a').forEach(link => {
-    link.addEventListener('click', function() {
-      document.querySelectorAll('#sidebar a').forEach(l => l.classList.remove('active'));
-      this.classList.add('active');
+        document.querySelectorAll('#sidebar a').forEach(link => {
+            link.addEventListener('click', function() {
+                document.querySelectorAll('#sidebar a').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
     });
-  });
 
-  window.openTutorialModal = () => {
-    document.getElementById("tutorialModal").style.display = "flex";
-  }
+    // ✅ ENA IZVEDBA FUNKCIJ – brez duplikatov
+    function openTutorialModal() {
+        document.getElementById("tutorialModal").style.display = "flex";
+    }
 
-  window.startToolbarTour = () => {
-    document.getElementById("tutorialModal").style.display = "none";
-    introJs().start();
-  }
+    function closeTutorialModal() {
+        document.getElementById("tutorialModal").style.display = "none";
+    }
 
-  window.goToCalendar = () => {
-    window.location.href = "calendar.php?tutorial=true";
-  }
-});
+    function startToolbarTour() {
+        closeTutorialModal();
+
+        introJs().setOptions({
+            steps: [{
+                    element: document.querySelector('.sidebar-title'),
+                    intro: "👋 Welcome to Schedulizer – your smart scheduling assistant!"
+                },
+                {
+                    element: document.querySelector('#link-o-meni'),
+                    intro: "🗂️ Personal info and password settings."
+                },
+                {
+                    element: document.querySelector('#link-koledar'),
+                    intro: "📅 Your weekly calendar and shift editor."
+                },
+                {
+                    element: document.querySelector('#link-nastavitve'),
+                    intro: "⚙️ Change your app language or theme."
+                },
+                {
+                    element: document.querySelector('#link-skupina'),
+                    intro: "👥 View your group or team members."
+                }
+            ],
+            showProgress: true,
+            showBullets: true,
+            nextLabel: "Next",
+            prevLabel: "Back",
+            doneLabel: "Finish"
+        }).start();
+    }
+
+    function goToCalendar() {
+        window.location.href = "calendar.php?tutorial=true";
+    }
 </script>
-
 <?php ob_end_flush(); ?>
