@@ -1,9 +1,8 @@
 <?php
 session_start();
 require 'db_connect.php';
-include 'toolbar.php';
 
-// Preveri vlogo
+// 🔐 Preveri, če je admin ali moderator
 $role = null;
 if (isset($_SESSION['user_id'])) {
     $stmt = $pdo->prepare("SELECT user_role FROM users WHERE id = ?");
@@ -11,10 +10,11 @@ if (isset($_SESSION['user_id'])) {
     $role = $stmt->fetchColumn();
 }
 
-if (!in_array($role, ['admin', 'moderator'])) {
+if (!in_array($role, ['admin', 'moderator', 'Premium'])) {
     header("Location: calendar.php");
     exit;
 }
+include 'toolbar.php';
 ?>
 
 <!DOCTYPE html>
@@ -23,16 +23,10 @@ if (!in_array($role, ['admin', 'moderator'])) {
 <head>
     <meta charset="UTF-8" />
     <title>Invite Teammates</title>
-
-    <!-- Google Fonts for consistent typography -->
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet" />
-
     <style>
         body {
             background: linear-gradient(135deg, #3A82F7, #00C2FF);
-            font-family: 'Mukta', sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             color: white;
             margin: 0;
             padding: 0;
@@ -45,8 +39,7 @@ if (!in_array($role, ['admin', 'moderator'])) {
         }
 
         h2 {
-            font-family: 'Anton', sans-serif;
-            font-size: 30px;
+            font-size: 28px;
             margin-bottom: 20px;
         }
 
@@ -63,7 +56,7 @@ if (!in_array($role, ['admin', 'moderator'])) {
             background: rgba(255, 255, 255, 0.2);
             color: white;
             font-size: 16px;
-            font-family: 'Mukta', sans-serif;
+            margin-bottom: 16px;
         }
 
         input::placeholder {
@@ -71,7 +64,6 @@ if (!in_array($role, ['admin', 'moderator'])) {
         }
 
         .btn {
-            margin-top: 20px;
             padding: 12px 24px;
             background: linear-gradient(to right, #00c2ff, #3a82f7);
             border: none;
@@ -81,7 +73,6 @@ if (!in_array($role, ['admin', 'moderator'])) {
             cursor: pointer;
             color: white;
             transition: 0.3s;
-            font-family: 'Mukta', sans-serif;
         }
 
         .btn:hover {
@@ -96,7 +87,76 @@ if (!in_array($role, ['admin', 'moderator'])) {
             border-radius: 10px;
             word-break: break-word;
             font-size: 15px;
-            font-family: 'Mukta', sans-serif;
+        }
+
+        body.dark {
+            background: radial-gradient(circle at top left, #1E1B2E, #140B2D, #0F0C1D);
+            font-family: 'Segoe UI', sans-serif;
+            color: #D8B4FE;
+            margin: 0;
+            padding: 0;
+        }
+
+        body.dark .container {
+            margin-left: 300px;
+            padding: 40px;
+            max-width: 600px;
+        }
+
+        body.dark h2 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #C4B5FD;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        body.dark form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        body.dark input[type="email"] {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #EDE9FE;
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+
+        body.dark input::placeholder {
+            color: rgba(232, 223, 255, 0.6);
+        }
+
+        body.dark .btn {
+            padding: 12px 24px;
+            background: linear-gradient(to right, #7C3AED, #5B21B6, #2E1065);
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #EDE9FE;
+            transition: 0.3s;
+            box-shadow: 0 4px 10px rgba(124, 58, 237, 0.2);
+        }
+
+        body.dark .btn:hover {
+            transform: scale(1.05);
+            background: linear-gradient(to right, #2E1065, #5B21B6, #7C3AED);
+            box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
+        }
+
+        body.dark .link-box {
+            margin-top: 25px;
+            background: #2A1A4F;
+            padding: 14px;
+            border-radius: 10px;
+            word-break: break-word;
+            font-size: 15px;
+            color: #D8B4FE;
         }
     </style>
 </head>

@@ -11,7 +11,7 @@ require 'db_connect.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // A) Avatar upload
     if (!empty($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
-        $allowed = ['image/jpeg','image/png','image/gif'];
+        $allowed = ['image/jpeg', 'image/png', 'image/gif'];
         if (
             in_array($_FILES['avatar']['type'], $allowed) &&
             $_FILES['avatar']['size'] <= 2 * 1024 * 1024
@@ -57,7 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $roleStmt->execute([$_SESSION['user_id']]);
     $userRole = $roleStmt->fetchColumn();
 
-    if ($userRole === 'admin' && array_key_exists('company', $_POST)) {
+    if ( in_array($userRole, ['admin','Premium'], true)
+  && array_key_exists('company', $_POST)
+) {
         $companyName = trim($_POST['company']);
         // remove existing link
         $pdo->prepare("DELETE FROM user_companies WHERE user_id = ?")
@@ -92,7 +94,7 @@ include 'toolbar.php';
 $user = $role = null;
 if (isset($_SESSION['user_id'])) {
     $stmt = $pdo->prepare(
-      "SELECT username, email, user_role, avatar, phone
+        "SELECT username, email, user_role, avatar, phone
          FROM users
         WHERE id = ?"
     );
@@ -104,7 +106,7 @@ if (isset($_SESSION['user_id'])) {
 // 3) Fetch free-text company name (if any)
 $companyName = '';
 $uc = $pdo->prepare(
-  "SELECT c.name
+    "SELECT c.name
      FROM companies c
      JOIN user_companies uc ON c.id = uc.company_id
     WHERE uc.user_id = ?"
@@ -115,11 +117,12 @@ $companyName = $uc->fetchColumn() ?: '';
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>About Me</title>
-  <style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>About Me</title>
+    <style>
         #main-content {
             margin: 0;
             padding: 0;
@@ -272,90 +275,175 @@ $companyName = $uc->fetchColumn() ?: '';
             transform: translateY(-2px) scale(1.02);
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
         }
+
+        body.dark #main-content {
+            background: radial-gradient(circle at top left, #1E1B2E, #140B2D, #0F0C1D);
+            color: #EDE9FE;
+        }
+
+        body.dark h2 {
+            color: #EDE9FE;
+        }
+
+        body.dark label {
+            color: #C4B5FD;
+        }
+
+        body.dark input {
+            background: rgba(255, 255, 255, 0.07);
+            color: #F3E8FF;
+            border: none;
+        }
+
+        body.dark input::placeholder {
+            color: rgba(235, 235, 245, 0.5);
+        }
+
+        body.dark input[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        body.dark .reset-password-btn {
+            background: linear-gradient(135deg, #4C1D95, #5B21B6, #7C3AED);
+            color: #E0E7FF;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        body.dark .reset-password-btn::before {
+            background: linear-gradient(135deg, #7C3AED, #5B21B6, #2E1065);
+        }
+
+        body.dark .reset-password-btn:hover {
+            color: #EDE9FE;
+            box-shadow: 0 6px 18px rgba(124, 58, 237, 0.5);
+        }
+
+        body.dark .input-wrapper input {
+            background: rgba(255, 255, 255, 0.05);
+            color: #F3E8FF;
+        }
+
+        body.dark .input-wrapper input::placeholder {
+            color: rgba(240, 240, 255, 0.4);
+        }
+
+        body.dark .profile-section {
+            color: #D8B4FE;
+        }
+
+        body.dark .profile-image {
+            background: #2E1065;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        body.dark .upload-label {
+            background: #6D28D9;
+            color: #F3E8FF;
+        }
+
+        body.dark .upload-label:hover {
+            background: #7C3AED;
+        }
+
+        body.dark .save-changes-btn {
+            background: linear-gradient(135deg, #4C1D95, #6D28D9, #7C3AED);
+            color: #F3E8FF;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        body.dark .save-changes-btn:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 6px 18px rgba(124, 58, 237, 0.5);
+        }
+
+        body.dark h2 {
+            color: #6D28D9;
+            /* enaka barva kot SHEDULIZER */
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+        }
     </style>
 </head>
+
 <body>
-  <div id="main-content">
-    <form action="aboutme.php" method="POST" enctype="multipart/form-data">
-      <div class="input-wrapper">
-        <h2>Account Info</h2>
+    <div id="main-content">
+        <form action="aboutme.php" method="POST" enctype="multipart/form-data">
+            <div class="input-wrapper">
+                <h2>Account Info</h2>
 
-        <!-- Avatar -->
-        <div class="profile-section">
-          <img
-            id="profileImage"
-            src="<?= htmlspecialchars($user['avatar'] ?: 'https://via.placeholder.com/90') ?>"
-            alt="Profile Picture"
-            class="profile-image"
-          ><br>
-          <label for="uploadImage" class="upload-label">Change your picture</label>
-          <input type="file"
-                 id="uploadImage"
-                 name="avatar"
-                 accept="image/*"
-                 style="display:none;"
-          >
-        </div>
+                <!-- Avatar -->
+                <div class="profile-section">
+                    <img
+                        id="profileImage"
+                        src="<?= htmlspecialchars($user['avatar'] ?: 'https://via.placeholder.com/90') ?>"
+                        alt="Profile Picture"
+                        class="profile-image"><br>
+                    <label for="uploadImage" class="upload-label">Change your picture</label>
+                    <input type="file"
+                        id="uploadImage"
+                        name="avatar"
+                        accept="image/*"
+                        style="display:none;">
+                </div>
 
-        <!-- Username -->
-        <label for="username">Username:</label>
-        <input type="text"
-               id="username"
-               name="username"
-               value="<?= htmlspecialchars($user['username'] ?? '') ?>"
-        >
+                <!-- Username -->
+                <label for="username">Username:</label>
+                <input type="text"
+                    id="username"
+                    name="username"
+                    value="<?= htmlspecialchars($user['username'] ?? '') ?>">
 
-        <!-- Email -->
-        <label for="email">Email:</label>
-        <input type="email"
-               id="email"
-               name="email"
-               value="<?= htmlspecialchars($user['email'] ?? '') ?>"
-        >
+                <!-- Email -->
+                <label for="email">Email:</label>
+                <input type="email"
+                    id="email"
+                    name="email"
+                    value="<?= htmlspecialchars($user['email'] ?? '') ?>">
 
-        <!-- Phone -->
-        <label for="phone">Phone Number:</label>
-        <input type="text"
-               id="phone"
-               name="phone"
-               value="<?= htmlspecialchars($user['phone'] ?? '') ?>"
-               placeholder="Enter your phone number"
-        >
+                <!-- Phone -->
+                <label for="phone">Phone Number:</label>
+                <input type="text"
+                    id="phone"
+                    name="phone"
+                    value="<?= htmlspecialchars($user['phone'] ?? '') ?>"
+                    placeholder="Enter your phone number">
 
-        <!-- Company (admins only) -->
-        <?php if ($role === 'admin'): ?>
-          <label for="company">Company Name:</label>
-          <input type="text"
-                 id="company"
-                 name="company"
-                 value="<?= htmlspecialchars($companyName) ?>"
-                 placeholder="Enter your company name"
-          >
-        <?php endif; ?>
+                <!-- Company (admins only) -->
+                <?php if (in_array($role, ['admin','Premium'], true)): ?>
+                    <label for="company">Company Name:</label>
+                    <input type="text"
+                        id="company"
+                        name="company"
+                        value="<?= htmlspecialchars($companyName) ?>"
+                        placeholder="Enter your company name">
+                <?php endif; ?>
 
-        <button type="submit" class="save-changes-btn">Save Changes</button>
-      </div>
-    </form>
-  </div>
+                <button type="submit" class="save-changes-btn">Save Changes</button>
+            </div>
+        </form>
+    </div>
 
-  <script>
-    // trigger file input
-    document.querySelector('.upload-label')
-      .addEventListener('click', () =>
-        document.getElementById('uploadImage').click()
-      );
+    <script>
+        // trigger file input
+        document.querySelector('.upload-label')
+            .addEventListener('click', () =>
+                document.getElementById('uploadImage').click()
+            );
 
-    // preview & auto-submit avatar
-    document.getElementById('uploadImage')
-      .addEventListener('change', function() {
-        if (!this.files[0]) return;
-        const reader = new FileReader();
-        reader.onload = e => {
-          document.getElementById('profileImage').src = e.target.result;
-        };
-        reader.readAsDataURL(this.files[0]);
-        this.form.submit();
-      });
-  </script>
+        // preview & auto-submit avatar
+        document.getElementById('uploadImage')
+            .addEventListener('change', function() {
+                if (!this.files[0]) return;
+                const reader = new FileReader();
+                reader.onload = e => {
+                    document.getElementById('profileImage').src = e.target.result;
+                };
+                reader.readAsDataURL(this.files[0]);
+                this.form.submit();
+            });
+    </script>
 </body>
+
 </html>

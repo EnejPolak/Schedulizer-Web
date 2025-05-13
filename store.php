@@ -1,4 +1,33 @@
-<?php include 'navbar.php'; ?>
+<?php
+session_start();
+
+// 0) If they just clicked “upgrade”…
+if (!empty($_SESSION['user_id']) && isset($_GET['upgrade'])) {
+    // sanitize & whitelist:
+    $newRole = $_GET['upgrade'] === 'Premium' ? 'Premium' : null;
+    if ($newRole) {
+        require_once 'db_connect.php';
+        $stmt = $pdo->prepare("UPDATE users SET user_role = ? WHERE id = ?");
+        $stmt->execute([$newRole, $_SESSION['user_id']]);
+        // also update the session so toolbar.php sees it right away:
+        $_SESSION['user_role'] = $newRole;
+    }
+    // send them into the app:
+    header('Location: calendar.php');
+    exit;
+}
+
+// 1) Now the normal “must be logged in” guard:
+if (empty($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+// 2) Only now include your navbar and start outputting HTML…
+include 'navbar.php';
+?>
+
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -193,7 +222,7 @@
                         <li><i class="fas fa-times" style="color: red;"></i> Admin view</li>
                         <li><i class="fas fa-times" style="color: red;"></i> Notifications</li>
                     </ul>
-                    <a href="#" class="plan-btn">Start Free</a>
+                    <a href="store.php?upgrade=Premium" class="plan-btn">Start Free</a>
                 </div>
 
                 <!-- Pro Plan -->
@@ -207,7 +236,7 @@
                         <li><i class="fas fa-check"></i> Weekly reports</li>
                         <li><i class="fas fa-check"></i> Email notifications</li>
                     </ul>
-                    <a href="#" class="plan-btn">Upgrade to Pro</a>
+                    <a href="store.php?upgrade=Premium" class="plan-btn">Upgrade to Pro</a>
                 </div>
 
                 <!-- Max Plan -->
@@ -220,7 +249,7 @@
                         <li><i class="fas fa-check"></i> Priority support</li>
                         <li><i class="fas fa-check"></i> Full integration</li>
                     </ul>
-                    <a href="#" class="plan-btn">Go Max</a>
+                    <a href="store.php?upgrade=Premium" class="plan-btn">Go Max</a>
                 </div>
             </div>
         </div>

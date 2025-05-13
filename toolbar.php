@@ -1,4 +1,5 @@
 <?php
+include 'theme.php';
 // Always start the session before reading it
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
@@ -31,6 +32,8 @@ if (!empty($_SESSION['user_id'])) {
         }
     }
 }
+
+
 ?>
 
 
@@ -252,133 +255,195 @@ if (!empty($_SESSION['user_id'])) {
             opacity: 1;
         }
     }
+
+    body.dark #toolbar-container #sidebar {
+        background: radial-gradient(circle at top left, #1E1B2E, #140B2D, #0F0C1D);
+        border-right: 3px solid #7C3AED;
+    }
+
+    body.dark #toolbar-container #sidebar .sidebar-title {
+        color: #6D28D9;
+        /* temnejša vijolična */
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+        /* senčenje teksta */
+    }
+
+    body.dark #toolbar-container #sidebar a {
+        color: #C4B5FD;
+        transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    body.dark #toolbar-container #sidebar a:hover {
+        background-color: #2E1065;
+        color: #D8B4FE;
+        border-radius: 8px;
+        margin-left: 10px;
+    }
+
+    body.dark #toolbar-container #sidebar a.active {
+        background-color: #7C3AED;
+        color: #1E1B2E;
+    }
+
+    body.dark #toolbar-container #sidebar .tutorial-button-bottom {
+        background: linear-gradient(to right, #7C3AED, #5B21B6, #2E1065);
+        color: #D1C4E9;
+        font-weight: 600;
+        border: none;
+        transition: transform 0.3s ease;
+        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.25);
+    }
+
+    body.dark #toolbar-container #sidebar .tutorial-button-bottom:hover {
+        background: linear-gradient(to right, #2E1065, #5B21B6, #7C3AED);
+        transform: scale(1.04);
+        color: #EDE9FE;
+    }
+
+    body.dark #toolbar-container #sidebar .user-card {
+        background: linear-gradient(135deg, #2A1A4F, #4C1D95, #1C1B29);
+        color: #C4B5FD;
+        border-radius: 12px;
+        box-shadow: 0 0 12px rgba(124, 58, 237, 0.15);
+    }
+
+    body.dark #toolbar-container #sidebar .user-name,
+    body.dark #toolbar-container #sidebar .logout-text {
+        color: #C4B5FD;
+        font-weight: 500;
+    }
 </style>
 
-<div id="toolbar-container">
-    <div id="sidebar">
-        <div class="sidebar-top">
-            <div class="sidebar-title">SHEDULIZER</div>
-            <a href="aboutme.php" id="link-o-meni">ABOUT ME</a>
-            <a href="calendar.php" id="link-koledar">CALENDAR</a>
-            <a href="settings.php" id="link-nastavitve">SETTINGS</a>
-            <a href="group.php" id="link-skupina">GROUP</a>
-            <?php if ($role === 'admin' || $role === 'moderator'): ?>
-                <a href="invite.php" id="link-invite">INVITE USERS</a>
-            <?php endif; ?>
-        </div>
+<body class="<?= $lightMode ? 'light' : 'dark' ?>">
 
-        <button class="tutorial-button-bottom" onclick="openTutorialModal()">📘 How it works?</button>
+    <div id="toolbar-container">
+        <div id="sidebar">
+            <div class="sidebar-top">
+                <div class="sidebar-title">SHEDULIZER</div>
+                <a href="aboutme.php" id="link-o-meni">ABOUT ME</a>
+                <a href="calendar.php" id="link-koledar">CALENDAR</a>
+                <a href="settings.php" id="link-nastavitve">SETTINGS</a>
+                <a href="group.php" id="link-skupina">GROUP</a>
+                <?php if (in_array($role, ['admin','moderator','Premium'], true)): ?>
+  <a href="invite.php" id="link-invite">INVITE USERS</a>
+<?php endif; ?>
 
-        <div class="sidebar-bottom">
-            <div class="user-card" id="userCard">
-                <div class="user-info-row" id="userInfo">
-                    <img
-                        src="<?= htmlspecialchars($avatarUrl) ?>"
-                        alt="User Avatar"
-                        style="width:30px;height:30px;border-radius:50%;object-fit:cover;">
-                    <div class="user-name">
-                        <?php
-                        if ($username !== '') {
-                            $parts = explode('.', $username);
-                            echo ucfirst($parts[0])
-                                . (isset($parts[1]) ? ' ' . ucfirst($parts[1]) : '');
-                        } else {
-                            echo "Guest";
-                        }
-                        ?>
+            </div>
+
+            <button class="tutorial-button-bottom" onclick="openTutorialModal()">📘 How it works?</button>
+
+            <div class="sidebar-bottom">
+                <div class="user-card" id="userCard">
+                    <div class="user-info-row" id="userInfo">
+                        <img
+                            src="<?= htmlspecialchars($avatarUrl) ?>"
+                            alt="User Avatar"
+                            style="width:30px;height:30px;border-radius:50%;object-fit:cover;">
+                        <div class="user-name">
+                            <?php
+                            if ($username !== '') {
+                                $parts = explode('.', $username);
+                                echo ucfirst($parts[0])
+                                    . (isset($parts[1]) ? ' ' . ucfirst($parts[1]) : '');
+                            } else {
+                                echo "Guest";
+                            }
+                            ?>
+                        </div>
                     </div>
-                </div>
-                <div class="logout-text" id="logoutText">
-                    <i class="fas fa-right-from-bracket"></i> <span>Log out</span>
+                    <div class="logout-text" id="logoutText">
+                        <i class="fas fa-right-from-bracket"></i> <span>Log out</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- modal + JS untouched -->
+    <!-- modal + JS untouched -->
 
 
-<!-- Modal -->
-<!-- Modal (OUTSIDE SIDEBAR!) -->
-<div class="tutorial-modal" id="tutorialModal">
-    <div class="tutorial-modal-content">
-        <span class="tutorial-close" onclick="closeTutorialModal()">×</span>
-        <h2>What would you like to see?</h2>
-        <button onclick="startToolbarTour()">⏱️ Just the Toolbar</button>
-        <button onclick="goToCalendar()">📅 Calendar Tutorial</button>
+    <!-- Modal -->
+    <!-- Modal (OUTSIDE SIDEBAR!) -->
+    <div class="tutorial-modal" id="tutorialModal">
+        <div class="tutorial-modal-content">
+            <span class="tutorial-close" onclick="closeTutorialModal()">×</span>
+            <h2>What would you like to see?</h2>
+            <button onclick="startToolbarTour()">⏱️ Just the Toolbar</button>
+            <button onclick="goToCalendar()">📅 Calendar Tutorial</button>
+        </div>
     </div>
-</div>
 
 
-<!-- JS Logic -->
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const userCard = document.getElementById("userCard");
-        const userInfo = document.getElementById("userInfo");
-        const logoutText = document.getElementById("logoutText");
+    <!-- JS Logic -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const userCard = document.getElementById("userCard");
+            const userInfo = document.getElementById("userInfo");
+            const logoutText = document.getElementById("logoutText");
 
-        userInfo.addEventListener("click", () => {
-            userCard.classList.toggle("clicked");
-        });
+            userInfo.addEventListener("click", () => {
+                userCard.classList.toggle("clicked");
+            });
 
-        logoutText.addEventListener("click", e => {
-            e.stopPropagation();
-            window.location.href = "logout.php";
-        });
+            logoutText.addEventListener("click", e => {
+                e.stopPropagation();
+                window.location.href = "logout.php";
+            });
 
-        document.querySelectorAll('#sidebar a').forEach(link => {
-            link.addEventListener('click', function() {
-                document.querySelectorAll('#sidebar a').forEach(l => l.classList.remove('active'));
-                this.classList.add('active');
+            document.querySelectorAll('#sidebar a').forEach(link => {
+                link.addEventListener('click', function() {
+                    document.querySelectorAll('#sidebar a').forEach(l => l.classList.remove('active'));
+                    this.classList.add('active');
+                });
             });
         });
-    });
 
-    // ✅ ENA IZVEDBA FUNKCIJ – brez duplikatov
-    function openTutorialModal() {
-        document.getElementById("tutorialModal").style.display = "flex";
-    }
+        // ✅ ENA IZVEDBA FUNKCIJ – brez duplikatov
+        function openTutorialModal() {
+            document.getElementById("tutorialModal").style.display = "flex";
+        }
 
-    function closeTutorialModal() {
-        document.getElementById("tutorialModal").style.display = "none";
-    }
+        function closeTutorialModal() {
+            document.getElementById("tutorialModal").style.display = "none";
+        }
 
-    function startToolbarTour() {
-        closeTutorialModal();
+        function startToolbarTour() {
+            closeTutorialModal();
 
-        introJs().setOptions({
-            steps: [{
-                    element: document.querySelector('.sidebar-title'),
-                    intro: "👋 Welcome to Schedulizer – your smart scheduling assistant!"
-                },
-                {
-                    element: document.querySelector('#link-o-meni'),
-                    intro: "🗂️ Personal info and password settings."
-                },
-                {
-                    element: document.querySelector('#link-koledar'),
-                    intro: "📅 Your weekly calendar and shift editor."
-                },
-                {
-                    element: document.querySelector('#link-nastavitve'),
-                    intro: "⚙️ Change your app language or theme."
-                },
-                {
-                    element: document.querySelector('#link-skupina'),
-                    intro: "👥 View your group or team members."
-                }
-            ],
-            showProgress: true,
-            showBullets: true,
-            nextLabel: "Next",
-            prevLabel: "Back",
-            doneLabel: "Finish"
-        }).start();
-    }
+            introJs().setOptions({
+                steps: [{
+                        element: document.querySelector('.sidebar-title'),
+                        intro: "👋 Welcome to Schedulizer – your smart scheduling assistant!"
+                    },
+                    {
+                        element: document.querySelector('#link-o-meni'),
+                        intro: "🗂️ Personal info and password settings."
+                    },
+                    {
+                        element: document.querySelector('#link-koledar'),
+                        intro: "📅 Your weekly calendar and shift editor."
+                    },
+                    {
+                        element: document.querySelector('#link-nastavitve'),
+                        intro: "⚙️ Change your app language or theme."
+                    },
+                    {
+                        element: document.querySelector('#link-skupina'),
+                        intro: "👥 View your group or team members."
+                    }
+                ],
+                showProgress: true,
+                showBullets: true,
+                nextLabel: "Next",
+                prevLabel: "Back",
+                doneLabel: "Finish"
+            }).start();
+        }
 
-    function goToCalendar() {
-        window.location.href = "calendar.php?tutorial=true";
-    }
-</script>
-<?php ob_end_flush(); ?>
+        function goToCalendar() {
+            window.location.href = "calendar.php?tutorial=true";
+        }
+    </script>
+    <?php ob_end_flush(); ?>

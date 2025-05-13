@@ -1091,7 +1091,7 @@ l 150 0
                         <li><i class="fas fa-xmark-circle error-icon"></i> Integrations</li>
                     </ul>
                     <div class="buy-button-wrapper">
-                        <button class="buy-plan-btn">Start Free Trial</button>
+                        <a href="login.php" class="buy-plan-btn">Start Free Trial</a>
                     </div>
                 </div>
             </div>
@@ -1110,7 +1110,7 @@ l 150 0
                         <li><i class="fas fa-xmark-circle error-icon"></i> Integrations</li>
                     </ul>
                     <div class="buy-button-wrapper">
-                        <button class="buy-plan-btn highlight-pro">Try Pro Free</button>
+                        <a href="login.php" class="buy-plan-btn highlight-pro">Try Pro Free</a>
                     </div>
                 </div>
             </div>
@@ -1130,7 +1130,7 @@ l 150 0
                         <li><i class="fas fa-check-circle success-icon"></i> Priority support</li>
                     </ul>
                     <div class="buy-button-wrapper">
-                        <button class="buy-plan-btn">Contact Sales</button>
+                        <a href="login.php" class="buy-plan-btn">Contact Sales</a>
                     </div>
                 </div>
             </div>
@@ -1142,7 +1142,7 @@ l 150 0
     <section class="cta-section reveal">
         <h2 id="cta-title" class="typewrite" data-text="Start optimizing your team's schedule today"></h2>
         <p id="cta-subtitle" class="type-paragraph" data-text="No credit card required. Cancel anytime. Join hundreds of teams who save hours every week."></p>
-        <a href="#pricing" class="cta-btn">Get Started Now</a>
+        <a href="store.php" class="cta-btn">Get Started Now</a>
     </section>
 
 

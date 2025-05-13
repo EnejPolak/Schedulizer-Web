@@ -50,6 +50,29 @@
             /* ali 1.5px ali več po želji */
         }
 
+        body.dark .settings-wrapper h2 {
+            font-size: 40px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #6D28D9;
+            /* temna vijolična */
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        body.dark label {
+            display: block;
+            margin-top: 20px;
+            font-weight: bold;
+            font-size: 18px;
+            color: #D8B4FE;
+            /* svetla vijolična */
+            letter-spacing: 2px;
+        }
+
+
+
         select {
             width: 100%;
             max-width: 400px;
@@ -83,14 +106,24 @@
             --color: #ffffff;
         }
 
+        body.dark {
+            --bg: radial-gradient(circle at top left, #1E1B2E, #140B2D, #0F0C1D);
+            --color: #ffffff;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--color);
+            transition: background 0.5s ease, color 0.5s ease;
+        }
+
         html {
             color-scheme: light only;
         }
 
         [data-dark-mode=true] {
-            --bg: linear-gradient(135deg, #003B2F, purple, magenta);
+            --bg: radial-gradient(circle at top left, #1E1B2E, #140B2D, #0F0C1D);
             --color: #ffffff;
-            /* bela pisava za kontrast */
             color-scheme: dark only;
         }
 
@@ -709,16 +742,49 @@
         const toggleBtn = document.querySelector("#darkmode-toggle");
         const syncCheckbox = document.querySelector("#sync");
 
+        window.addEventListener("DOMContentLoaded", () => {
+            const isPressed = toggleBtn.getAttribute("aria-pressed") === "true";
+            if (isPressed) {
+                document.body.classList.add("dark");
+            } else {
+                document.body.classList.remove("dark");
+            }
+        });
+
         const toggleDarkMode = () => {
             const isPressed = toggleBtn.getAttribute("aria-pressed") === "true";
+            const newMode = isPressed ? 0 : 1; // 1 = light, 0 = dark
+
+            // Preklopi vizualno
+            toggleBtn.setAttribute("aria-pressed", newMode ? "true" : "false");
+
             if (syncCheckbox && syncCheckbox.checked) {
-                document.body.setAttribute("data-dark-mode", isPressed ? "false" : "true");
+                // Uporabi class, ne attribute, za takojšen styling
+                if (newMode === 0) {
+                    document.body.classList.add("dark");
+                } else {
+                    document.body.classList.remove("dark");
+                }
             }
-            toggleBtn.setAttribute("aria-pressed", isPressed ? "false" : "true");
+
+            // Shrani v bazo
+            fetch('save_theme.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    light_mode: newMode
+                })
+            });
         };
 
         toggleBtn.addEventListener("click", toggleDarkMode);
     </script>
+
+
+
+
 
 </body>
 
