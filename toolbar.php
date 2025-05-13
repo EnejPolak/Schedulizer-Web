@@ -1,22 +1,38 @@
 <?php
-session_start();
-ob_start();
+// Always start the session before reading it
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
 
+// Make sure we have our DB connection
 if (!isset($pdo)) {
     require_once 'db_connect.php';
 }
 
-$role = null;
-if (isset($_SESSION['user_id']) && $pdo instanceof PDO) {
-    try {
-        $stmt = $pdo->prepare("SELECT user_role FROM users WHERE id = ?");
-        $stmt->execute([$_SESSION['user_id']]);
-        $role = $stmt->fetchColumn();
-    } catch (Exception $e) {
-        $role = null;
+// Defaults
+$role      = null;
+$username  = '';
+$avatarUrl = 'assets/images/default_avatar.png';
+
+if (!empty($_SESSION['user_id'])) {
+    $stmt = $pdo->prepare("
+        SELECT username, user_role, avatar
+          FROM users
+         WHERE id = ?
+    ");
+    $stmt->execute([ $_SESSION['user_id'] ]);
+    $u = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($u) {
+        $username = $u['username'] ?? '';
+        $role     = $u['user_role'] ?? null;
+        if (!empty($u['avatar'])) {
+            $avatarUrl = $u['avatar'];
+        }
     }
 }
 ?>
+
 
 <!-- STYLES -->
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
@@ -80,7 +96,7 @@ if (isset($_SESSION['user_id']) && $pdo instanceof PDO) {
     }
 
     #toolbar-container #sidebar .tutorial-button-bottom {
-        margin: 0 20px 50px 20px;
+        margin: auto 20px 50px 20px;
         font-size: 16px;
         background-color: #00C2FF;
         color: #002B5B;
@@ -164,92 +180,97 @@ if (isset($_SESSION['user_id']) && $pdo instanceof PDO) {
     }
 </style>
 
-<!-- TOOLBAR HTML -->
 <div id="toolbar-container">
-    <div id="sidebar">
-        <div class="sidebar-top">
-            <div class="sidebar-title">SHEDULIZER</div>
-            <a href="aboutme.php" id="link-o-meni">ABOUT ME</a>
-            <a href="calendar.php" id="link-koledar">CALENDAR</a>
-            <a href="settings.php" id="link-nastavitve">SETTINGS</a>
-            <a href="group.php" id="link-skupina">GROUP</a>
-            <?php if ($role === 'admin' || $role === 'moderator'): ?>
-                <a href="invite.php" id="link-invite">INVITE USERS</a>
-            <?php endif; ?>
-        </div>
-
-        <button class="tutorial-button-bottom" onclick="openTutorialModal()">📘 How it works?</button>
-
-        <div class="sidebar-bottom">
-            <div class="user-card" id="userCard">
-                <div class="user-info-row" id="userInfo">
-                    <img src="380d2bf3-4656-40f6-bbfc-1f9d67c308ad.png" alt="User Avatar">
-                    <div class="user-name">
-                        <?php
-                        if (isset($_SESSION['username'])) {
-                            $parts = explode('.', $_SESSION['username']);
-                            $ime = ucfirst($parts[0]);
-                            $priimek = isset($parts[1]) ? ucfirst($parts[1]) : '';
-                            echo "$ime $priimek";
-                        } else {
-                            echo "Guest";
-                        }
-                        ?>
-                    </div>
-                </div>
-                <div class="logout-text" id="logoutText">
-                    <i class="fas fa-right-from-bracket"></i> <span>Log out</span>
-                </div>
-            </div>
-        </div>
+  <div id="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-title">SHEDULIZER</div>
+      <a href="aboutme.php"   id="link-o-meni">ABOUT ME</a>
+      <a href="calendar.php"  id="link-koledar">CALENDAR</a>
+      <a href="settings.php"  id="link-nastavitve">SETTINGS</a>
+      <a href="group.php"     id="link-skupina">GROUP</a>
+      <?php if ($role === 'admin' || $role === 'moderator'): ?>
+        <a href="invite.php"  id="link-invite">INVITE USERS</a>
+      <?php endif; ?>
     </div>
+
+    <button class="tutorial-button-bottom" onclick="openTutorialModal()">ðŸ“– How it works?</button>
+
+    <div class="sidebar-bottom">
+      <div class="user-card" id="userCard">
+        <div class="user-info-row" id="userInfo">
+          <img
+            src="<?= htmlspecialchars($avatarUrl) ?>"
+            alt="User Avatar"
+            style="width:30px;height:30px;border-radius:50%;object-fit:cover;"
+          >
+          <div class="user-name">
+            <?php
+              if ($username !== '') {
+                  $parts = explode('.', $username);
+                  echo ucfirst($parts[0])
+                     . (isset($parts[1]) ? ' '.ucfirst($parts[1]) : '');
+              } else {
+                  echo "Guest";
+              }
+            ?>
+          </div>
+        </div>
+        <div class="logout-text" id="logoutText">
+          <i class="fas fa-right-from-bracket"></i> <span>Log out</span>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<!-- modal + JS untouched -->
+
 
 <!-- Modal -->
 <div class="tutorial-modal" id="tutorialModal" style="display:none;">
-    <div class="tutorial-modal-content">
-        <h2>What would you like to see?</h2>
-        <button onclick="startToolbarTour()">🧭 Just the Toolbar</button>
-        <button onclick="goToCalendar()">📆 Calendar Tutorial</button>
-    </div>
+  <div class="tutorial-modal-content">
+    <h2>What would you like to see?</h2>
+    <button onclick="startToolbarTour()">Ã°Å¸Â§Â­ Just the Toolbar</button>
+    <button onclick="goToCalendar()">Ã°Å¸â€œâ€¦ Calendar Tutorial</button>
+  </div>
 </div>
 
 <!-- JS Logic -->
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const userCard = document.getElementById("userCard");
-        const userInfo = document.getElementById("userInfo");
-        const logoutText = document.getElementById("logoutText");
+document.addEventListener("DOMContentLoaded", function() {
+  const userCard  = document.getElementById("userCard");
+  const userInfo  = document.getElementById("userInfo");
+  const logoutText= document.getElementById("logoutText");
 
-        userInfo.addEventListener("click", () => {
-            userCard.classList.toggle("clicked");
-        });
+  userInfo.addEventListener("click", () => {
+    userCard.classList.toggle("clicked");
+  });
 
-        logoutText.addEventListener("click", (e) => {
-            e.stopPropagation();
-            window.location.href = "logout.php";
-        });
+  logoutText.addEventListener("click", e => {
+    e.stopPropagation();
+    window.location.href = "logout.php";
+  });
 
-        document.querySelectorAll('#sidebar a').forEach(link => {
-            link.addEventListener('click', function() {
-                document.querySelectorAll('#sidebar a').forEach(l => l.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
-
-        window.openTutorialModal = function() {
-            document.getElementById("tutorialModal").style.display = "flex";
-        }
-
-        window.startToolbarTour = function() {
-            document.getElementById("tutorialModal").style.display = "none";
-            introJs().start();
-        }
-
-        window.goToCalendar = function() {
-            window.location.href = "calendar.php?tutorial=true";
-        }
+  document.querySelectorAll('#sidebar a').forEach(link => {
+    link.addEventListener('click', function() {
+      document.querySelectorAll('#sidebar a').forEach(l => l.classList.remove('active'));
+      this.classList.add('active');
     });
+  });
+
+  window.openTutorialModal = () => {
+    document.getElementById("tutorialModal").style.display = "flex";
+  }
+
+  window.startToolbarTour = () => {
+    document.getElementById("tutorialModal").style.display = "none";
+    introJs().start();
+  }
+
+  window.goToCalendar = () => {
+    window.location.href = "calendar.php?tutorial=true";
+  }
+});
 </script>
 
 <?php ob_end_flush(); ?>

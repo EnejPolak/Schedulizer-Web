@@ -1,29 +1,125 @@
 <?php
+// show all errors
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
-include 'toolbar.php';
 require 'db_connect.php';
 
-// Pridobi podatke prijavljenega uporabnika
-$user = null;
-$role = null;
+// 1) Handle form submission (avatar + other fields)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // A) Avatar upload
+    if (!empty($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+        $allowed = ['image/jpeg','image/png','image/gif'];
+        if (
+            in_array($_FILES['avatar']['type'], $allowed) &&
+            $_FILES['avatar']['size'] <= 2 * 1024 * 1024
+        ) {
+            $ext     = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
+            $newName = bin2hex(random_bytes(8)) . ".$ext";
+            $dest    = __DIR__ . "/uploads/avatars/$newName";
+            if (move_uploaded_file($_FILES['avatar']['tmp_name'], $dest)) {
+                $pdo->prepare("UPDATE users SET avatar = ? WHERE id = ?")
+                    ->execute(["uploads/avatars/$newName", $_SESSION['user_id']]);
+            }
+        }
+    }
 
+    // B) Update username, email, phone
+    $updates = [];
+    $params  = [];
+    if (isset($_POST['username'])) {
+        $updates[] = "username = ?";
+        $params[]  = trim($_POST['username']);
+    }
+    if (isset($_POST['email'])) {
+        $updates[] = "email = ?";
+        $params[]  = trim($_POST['email']);
+    }
+    if (array_key_exists('phone', $_POST)) {
+        $updates[] = "phone = ?";
+        $params[]  = trim($_POST['phone']);
+    }
+    if ($updates) {
+        $params[] = $_SESSION['user_id'];
+        $sql = "UPDATE users SET " . implode(", ", $updates) . " WHERE id = ?";
+        $pdo->prepare($sql)->execute($params);
+
+        // sync session username
+        if (isset($_POST['username'])) {
+            $_SESSION['username'] = trim($_POST['username']);
+        }
+    }
+
+    // C) Company (free-text), admins only
+    $roleStmt = $pdo->prepare("SELECT user_role FROM users WHERE id = ?");
+    $roleStmt->execute([$_SESSION['user_id']]);
+    $userRole = $roleStmt->fetchColumn();
+
+    if ($userRole === 'admin' && array_key_exists('company', $_POST)) {
+        $companyName = trim($_POST['company']);
+        // remove existing link
+        $pdo->prepare("DELETE FROM user_companies WHERE user_id = ?")
+            ->execute([$_SESSION['user_id']]);
+
+        if ($companyName !== '') {
+            // find or create company
+            $cStmt = $pdo->prepare("SELECT id FROM companies WHERE name = ?");
+            $cStmt->execute([$companyName]);
+            $companyId = $cStmt->fetchColumn();
+
+            if (!$companyId) {
+                $pdo->prepare("INSERT INTO companies (name) VALUES (?)")
+                    ->execute([$companyName]);
+                $companyId = $pdo->lastInsertId();
+            }
+
+            // link user ↔ company
+            $pdo->prepare(
+                "INSERT INTO user_companies (user_id, company_id) VALUES (?, ?)"
+            )->execute([$_SESSION['user_id'], $companyId]);
+        }
+    }
+
+    header("Location: aboutme.php");
+    exit;
+}
+
+// 2) Include toolbar & pull current user + company
+include 'toolbar.php';
+
+$user = $role = null;
 if (isset($_SESSION['user_id'])) {
-    $stmt = $pdo->prepare("SELECT username, email, password_hash, user_role FROM users WHERE id = ?");
+    $stmt = $pdo->prepare(
+      "SELECT username, email, user_role, avatar, phone
+         FROM users
+        WHERE id = ?"
+    );
     $stmt->execute([$_SESSION['user_id']]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     $role = $user['user_role'] ?? null;
 }
+
+// 3) Fetch free-text company name (if any)
+$companyName = '';
+$uc = $pdo->prepare(
+  "SELECT c.name
+     FROM companies c
+     JOIN user_companies uc ON c.id = uc.company_id
+    WHERE uc.user_id = ?"
+);
+$uc->execute([$_SESSION['user_id']]);
+$companyName = $uc->fetchColumn() ?: '';
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>About Me</title>
-
-    <style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>About Me</title>
+  <style>
         #main-content {
             margin: 0;
             padding: 0;
@@ -178,63 +274,88 @@ if (isset($_SESSION['user_id'])) {
         }
     </style>
 </head>
-
 <body>
+  <div id="main-content">
+    <form action="aboutme.php" method="POST" enctype="multipart/form-data">
+      <div class="input-wrapper">
+        <h2>Account Info</h2>
 
-    <div id="main-content">
-        <div class="input-wrapper">
-            <h2>Account Info</h2>
-
-            <div class="profile-section">
-                <img id="profileImage" src="" alt="Profile Picture" class="profile-image">
-                <br>
-                <label for="uploadImage" class="upload-label">Change your picture</label>
-                <input type="file" id="uploadImage" accept="image/*" style="display: none;">
-            </div>
-
-            <label for="username">Username:</label>
-            <input type="text" id="username" placeholder="Enter your username" value="<?= htmlspecialchars($user['username'] ?? '') ?>">
-
-            <label for="email">Email:</label>
-            <input type="email" id="email" placeholder="Enter your email" value="<?= htmlspecialchars($user['email'] ?? '') ?>">
-
-            <label for="password">Password:</label>
-            <input type="password" id="password" value="<?= str_repeat('*', 12) ?>" disabled>
-
-            <button class="reset-password-btn" onclick="window.location.href='reset-password.php'">Reset Password</button>
-
-            <label for="phone">Phone Number:</label>
-            <input type="text" id="phone" placeholder="Enter your phone number">
-
-            <?php if ($role === 'admin'): ?>
-                <label for="company">Company Name:</label>
-                <input type="text" id="company" placeholder="Enter your company name">
-            <?php endif; ?>
-
-            <button class="save-changes-btn">Save Changes</button>
+        <!-- Avatar -->
+        <div class="profile-section">
+          <img
+            id="profileImage"
+            src="<?= htmlspecialchars($user['avatar'] ?: 'https://via.placeholder.com/90') ?>"
+            alt="Profile Picture"
+            class="profile-image"
+          ><br>
+          <label for="uploadImage" class="upload-label">Change your picture</label>
+          <input type="file"
+                 id="uploadImage"
+                 name="avatar"
+                 accept="image/*"
+                 style="display:none;"
+          >
         </div>
-    </div>
 
-    <script>
-        document.getElementById('uploadImage').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+        <!-- Username -->
+        <label for="username">Username:</label>
+        <input type="text"
+               id="username"
+               name="username"
+               value="<?= htmlspecialchars($user['username'] ?? '') ?>"
+        >
 
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                document.getElementById('profileImage').src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        });
+        <!-- Email -->
+        <label for="email">Email:</label>
+        <input type="email"
+               id="email"
+               name="email"
+               value="<?= htmlspecialchars($user['email'] ?? '') ?>"
+        >
 
-        window.addEventListener('DOMContentLoaded', () => {
-            const image = document.getElementById('profileImage');
-            if (!image.src || image.src.includes('blank')) {
-                image.src = 'https://via.placeholder.com/90x90/ffffff/cccccc?text=👤';
-            }
-        });
-    </script>
+        <!-- Phone -->
+        <label for="phone">Phone Number:</label>
+        <input type="text"
+               id="phone"
+               name="phone"
+               value="<?= htmlspecialchars($user['phone'] ?? '') ?>"
+               placeholder="Enter your phone number"
+        >
 
+        <!-- Company (admins only) -->
+        <?php if ($role === 'admin'): ?>
+          <label for="company">Company Name:</label>
+          <input type="text"
+                 id="company"
+                 name="company"
+                 value="<?= htmlspecialchars($companyName) ?>"
+                 placeholder="Enter your company name"
+          >
+        <?php endif; ?>
+
+        <button type="submit" class="save-changes-btn">Save Changes</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // trigger file input
+    document.querySelector('.upload-label')
+      .addEventListener('click', () =>
+        document.getElementById('uploadImage').click()
+      );
+
+    // preview & auto-submit avatar
+    document.getElementById('uploadImage')
+      .addEventListener('change', function() {
+        if (!this.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          document.getElementById('profileImage').src = e.target.result;
+        };
+        reader.readAsDataURL(this.files[0]);
+        this.form.submit();
+      });
+  </script>
 </body>
-
 </html>
