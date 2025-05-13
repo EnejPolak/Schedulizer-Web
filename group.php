@@ -56,7 +56,7 @@ include 'toolbar.php';
 <body>
     <div id="main-content">
         <div class="container">
-            <h1>Člani skupine</h1>
+            <h1>GROUP</h1>
             <div class="user-list">
                 <!-- Tu se bodo kasneje dodali člani skupine -->
                 <div class="user-card">Uporabnik 1</div>

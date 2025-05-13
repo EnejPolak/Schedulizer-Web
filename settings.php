@@ -436,7 +436,7 @@
 <body>
     <div id="main-content">
         <div class="settings-wrapper">
-            <h2>⚙️ User Settings</h2>
+            <h2>User Settings</h2>
 
 
             <form method="post" action="save_settings.php">
@@ -453,7 +453,9 @@
                 <label for="sync">Sync &lt;body&gt;</label>
                 <input id="sync" type="checkbox" checked />
             </div>
-            <button class="toggle" aria-pressed="false" title="Toggle Dark Mode">
+
+            <button id="darkmode-toggle" class="toggle" aria-pressed="false" title="Toggle Dark Mode">
+
                 <span class="toggle__content">
                     <svg aria-hidden=true class="toggle__backdrop" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 290 228">
                         <g class="clouds">
@@ -704,18 +706,20 @@
     </div>
 
     <script>
-        const BUTTON = document.querySelector("button");
-        const SYNC = document.querySelector("#sync")
+        const toggleBtn = document.querySelector("#darkmode-toggle");
+        const syncCheckbox = document.querySelector("#sync");
 
-        const TOGGLE = () => {
-            const IS_PRESSED = BUTTON.matches("[aria-pressed=true]");
-            if (SYNC.checked)
-                document.body.setAttribute("data-dark-mode", IS_PRESSED ? false : true);
-            BUTTON.setAttribute("aria-pressed", IS_PRESSED ? false : true);
+        const toggleDarkMode = () => {
+            const isPressed = toggleBtn.getAttribute("aria-pressed") === "true";
+            if (syncCheckbox && syncCheckbox.checked) {
+                document.body.setAttribute("data-dark-mode", isPressed ? "false" : "true");
+            }
+            toggleBtn.setAttribute("aria-pressed", isPressed ? "false" : "true");
         };
 
-        BUTTON.addEventListener("click", TOGGLE);
+        toggleBtn.addEventListener("click", toggleDarkMode);
     </script>
+
 </body>
 
 </html>

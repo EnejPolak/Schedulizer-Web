@@ -1,3 +1,91 @@
+<?php
+session_start();
+require 'db_connect.php';
+
+$errors   = [];
+$action   = $_REQUEST['action']   ?? '';
+$email    = $_POST['email']       ?? '';
+$password = $_POST['password']    ?? '';
+$username = $_POST['username']    ?? '';
+
+// LOGIN
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
+    $email    = trim($email);
+    $password = trim($password);
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Please enter a valid email address.';
+    } elseif ($password === '') {
+        $errors[] = 'Please enter your password.';
+    }
+
+    if (empty($errors)) {
+        $stmt = $pdo->prepare("SELECT id, password_hash FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user) {
+            $errors[] = 'No account found with that email.';
+        } elseif (!password_verify($password, $user['password_hash'])) {
+            $errors[] = 'Incorrect password.';
+        } else {
+            $_SESSION['user_id'] = $user['id'];
+
+            // 🔍 Zraven pridobi tudi username
+            $stmt2 = $pdo->prepare("SELECT username FROM users WHERE id = ?");
+            $stmt2->execute([$user['id']]);
+            $row = $stmt2->fetch(PDO::FETCH_ASSOC);
+
+            $_SESSION['username'] = $row['username']; // npr. enej.polak
+
+            header('Location: calendar.php');
+            exit;
+        }
+    }
+}
+
+// REGISTER
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'register') {
+    $email     = trim($email);
+    $password  = trim($password);
+    $username  = trim($username);
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Please enter a valid email address.';
+    } elseif (strlen($password) < 8) {
+        $errors[] = 'Password must be at least 8 characters.';
+    } elseif (!preg_match('/[A-Z]/', $password)) {
+        $errors[] = 'Password must contain at least one uppercase letter.';
+    } elseif (!preg_match('/[a-z]/', $password)) {
+        $errors[] = 'Password must contain at least one lowercase letter.';
+    } elseif (!preg_match('/\d/', $password)) {
+        $errors[] = 'Password must contain at least one number.';
+    } else {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        if ($stmt->fetchColumn() > 0) {
+            $errors[] = 'That email is already registered.';
+        }
+    }
+
+    if (empty($errors)) {
+        $password_hash = password_hash($password, PASSWORD_DEFAULT);
+        try {
+            $stmt = $pdo->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
+            $stmt->execute([$username, $email, $password_hash]);
+
+            $_SESSION['user_id'] = $pdo->lastInsertId();
+            $_SESSION['username']  = $username;
+            header("Location: login.php?registered=1");
+            exit;
+        } catch (Exception $e) {
+            $errors[] = "Registration failed: " . $e->getMessage();
+        }
+    }
+}
+?>
+
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -6,8 +94,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login/Signup Form</title>
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-
     <style>
+        /* enak CSS kot prej, brez sprememb za register-business */
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
 
         * {
@@ -15,8 +103,6 @@
             padding: 0;
             box-sizing: border-box;
             font-family: "Poppins", sans-serif;
-            text-decoration: none;
-            list-style: none;
         }
 
         body {
@@ -65,19 +151,25 @@
             padding: 40px;
             z-index: 1;
             transition: .6s ease-in-out 1.2s, visibility 0s 1s;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+        }
+
+        .form-box.active {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         .container.active .form-box {
             right: 50%;
         }
 
-        .form-box.register,
-        .form-box.register-business {
+        .form-box.register {
             visibility: hidden;
         }
 
-        .container.active .form-box.register,
-        .container.active .form-box.register-business {
+        .container.active .form-box.register {
             visibility: visible;
         }
 
@@ -214,18 +306,6 @@
             border: 2px solid #fff;
             box-shadow: none;
             margin-bottom: 10px;
-            /* <-- dodamo ta margin spodaj */
-        }
-
-        .form-box {
-            opacity: 0;
-            transform: translateY(20px);
-            transition: all 0.5s ease;
-        }
-
-        .form-box.active {
-            opacity: 1;
-            transform: translateY(0);
         }
     </style>
 </head>
@@ -234,14 +314,32 @@
     <div class="container">
         <!-- LOGIN -->
         <div class="form-box login">
-            <form action="#">
+            <form action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" method="POST">
+                <?php if (isset($_GET['registered'])): ?>
+                    <div class="success-box" style="color:green; text-align:center; margin-bottom:1em;">
+                        You’ve successfully registered! Please log in.
+                    </div>
+                <?php endif; ?>
+                <input type="hidden" name="action" value="login">
                 <h1>Login</h1>
+                <?php if (isset($_GET['reset'])): ?>
+                    <div class="success-box" style="color:green; text-align:center; margin-bottom:1em;">
+                        Your password has been changed! Please log in.
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($errors) && ($_POST['action'] ?? '') === 'login'): ?>
+                    <div class="error-box" style="color:red;…">
+                        <?= htmlspecialchars($errors[0]) ?>
+                    </div>
+                <?php endif; ?>
                 <div class="input-box">
-                    <input type="text" placeholder="Username" required>
+                    <input type="email" name="email" placeholder="Email" required
+                        value="<?= htmlspecialchars($email ?? '') ?>">
                     <i class='bx bxs-user'></i>
                 </div>
                 <div class="input-box">
-                    <input type="password" placeholder="Password" required>
+                    <input type="password" name="password" placeholder="Password" required>
                     <i class='bx bxs-lock-alt'></i>
                 </div>
                 <div class="forgot-link">
@@ -260,52 +358,29 @@
 
         <!-- REGISTER -->
         <div class="form-box register">
-            <form action="#">
-                <h1>Registration</h1>
+            <form action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" method="POST">
+                <h1 style="margin-bottom: 12px;">Registration</h1>
+                <input type="hidden" name="action" value="register">
+
+                <?php if (!empty($errors) && $action === 'register'): ?>
+                    <div class="error-box" style="color:red; font-size:14px; margin-bottom:20px; text-align:center;">
+                        <?= htmlspecialchars($errors[0]) ?>
+                    </div>
+                <?php endif; ?>
+
                 <div class="input-box">
-                    <input type="text" placeholder="Username" required>
+                    <input type="text" name="username" placeholder="Username" required value="<?= htmlspecialchars($username ?? '') ?>">
                     <i class='bx bxs-user'></i>
                 </div>
                 <div class="input-box">
-                    <input type="email" placeholder="Email" required>
+                    <input type="email" name="email" placeholder="Email" required value="<?= htmlspecialchars($email ?? '') ?>">
                     <i class='bx bxs-envelope'></i>
                 </div>
                 <div class="input-box">
-                    <input type="password" placeholder="Password" required>
+                    <input type="password" name="password" placeholder="Password" required>
                     <i class='bx bxs-lock-alt'></i>
                 </div>
                 <button type="submit" class="btn">Register</button>
-                <p>or register with social platforms</p>
-                <div class="social-icons">
-                    <a href="#"><i class='bx bxl-google'></i></a>
-                    <a href="#"><i class='bx bxl-facebook'></i></a>
-                    <a href="#"><i class='bx bxl-github'></i></a>
-                    <a href="#"><i class='bx bxl-linkedin'></i></a>
-                </div>
-            </form>
-        </div>
-
-        <!-- REGISTER BUSINESS -->
-        <div class="form-box register-business">
-            <form action="#">
-                <h1>Business Registration</h1>
-                <div class="input-box">
-                    <input type="text" placeholder="Business Name" required>
-                    <i class='bx bxs-briefcase'></i>
-                </div>
-                <div class="input-box">
-                    <input type="text" placeholder="Username" required>
-                    <i class='bx bxs-user'></i>
-                </div>
-                <div class="input-box">
-                    <input type="email" placeholder="Email" required>
-                    <i class='bx bxs-envelope'></i>
-                </div>
-                <div class="input-box">
-                    <input type="password" placeholder="Password" required>
-                    <i class='bx bxs-lock-alt'></i>
-                </div>
-                <button type="submit" class="btn">Register Business</button>
                 <p>or register with social platforms</p>
                 <div class="social-icons">
                     <a href="#"><i class='bx bxl-google'></i></a>
@@ -322,9 +397,7 @@
                 <h1>Hello, Welcome!</h1>
                 <p>Don't have an account?</p>
                 <button class="btn register-btn">Register</button>
-                <button class="btn register-business-btn">Register Business</button>
             </div>
-
             <div class="toggle-panel toggle-right">
                 <h1>Welcome Back!</h1>
                 <p>Already have an account?</p>
@@ -336,43 +409,51 @@
     <script>
         const container = document.querySelector('.container');
         const registerBtn = document.querySelector('.register-btn');
-        const registerBusinessBtn = document.querySelector('.register-business-btn');
         const loginBtn = document.querySelector('.login-btn');
         const formBoxLogin = document.querySelector('.form-box.login');
         const formBoxRegister = document.querySelector('.form-box.register');
-        const formBoxBusiness = document.querySelector('.form-box.register-business');
 
         function hideAllForms() {
             formBoxLogin.classList.remove('active');
             formBoxRegister.classList.remove('active');
-            formBoxBusiness.classList.remove('active');
         }
 
+        // ↔️ Toggle to Register panel
         registerBtn.addEventListener('click', () => {
             container.classList.add('active');
             hideAllForms();
             formBoxRegister.style.visibility = 'visible';
-            formBoxBusiness.style.visibility = 'hidden';
             formBoxRegister.classList.add('active');
-        })
+        });
 
-        registerBusinessBtn.addEventListener('click', () => {
-            container.classList.add('active');
-            hideAllForms();
-            formBoxRegister.style.visibility = 'hidden';
-            formBoxBusiness.style.visibility = 'visible';
-            formBoxBusiness.classList.add('active');
-        })
-
+        // ↔️ Toggle to Login panel
         loginBtn.addEventListener('click', () => {
             container.classList.remove('active');
             hideAllForms();
             formBoxRegister.style.visibility = 'hidden';
-            formBoxBusiness.style.visibility = 'hidden';
             formBoxLogin.classList.add('active');
-        })
+        });
 
+        // 📌 Default to Login panel on first load
         formBoxLogin.classList.add('active');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            <?php if (!empty($errors)): ?>
+                // If there were any errors, show the matching panel:
+                hideAllForms();
+                <?php if ($action === 'login'): ?>
+                    // Login error → show Login
+                    container.classList.remove('active');
+                    formBoxRegister.style.visibility = 'hidden';
+                    formBoxLogin.classList.add('active');
+                <?php else: /* register */ ?>
+                    // Register error → show Register
+                    container.classList.add('active');
+                    formBoxRegister.style.visibility = 'visible';
+                    formBoxRegister.classList.add('active');
+                <?php endif; ?>
+            <?php endif; ?>
+        });
     </script>
 
 </body>

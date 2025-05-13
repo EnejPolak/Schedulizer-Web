@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS calendar;
+
+CREATE TABLE calendar (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    users_id INT UNSIGNED NOT NULL,
+    available BOOLEAN DEFAULT FALSE,
+    not_available BOOLEAN DEFAULT FALSE,
+    date DATE NOT NULL,
+    time TIME NOT NULL,
+    CONSTRAINT fk_user FOREIGN KEY (users_id) REFERENCES users(id) ON DELETE CASCADE
+);

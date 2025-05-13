@@ -1,19 +1,34 @@
-<!-- Google Fonts (lahko daš v glavo glavne strani!) -->
+<?php
+session_start();
+ob_start();
+
+if (!isset($pdo)) {
+    require_once 'db_connect.php';
+}
+
+$role = null;
+if (isset($_SESSION['user_id']) && $pdo instanceof PDO) {
+    try {
+        $stmt = $pdo->prepare("SELECT user_role FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $role = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        $role = null;
+    }
+}
+?>
+
+<!-- STYLES -->
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@700&display=swap" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet" />
-
-<!-- Intro.js -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 <link rel="stylesheet" href="https://unpkg.com/intro.js/minified/introjs.min.css" />
 <script src="https://unpkg.com/intro.js/minified/intro.min.js"></script>
 
 <style>
-    /* Style iz tvoje glave – ohranjeno enako */
-    body {
-        font-family: 'Bebas Neue', sans-serif;
-    }
-
-    #sidebar {
+    #toolbar-container #sidebar {
+        font-family: 'Bebas Neue', sans-serif !important;
         position: fixed;
         top: 0;
         left: 0;
@@ -21,20 +36,20 @@
         width: 240px;
         background: #002B5B;
         backdrop-filter: blur(15px);
-        box-shadow: 2px 0px 10px rgba(0, 0, 0, 0.5);
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        padding: 30px 0;
         z-index: 1000;
     }
 
-    .sidebar-top {
+    #toolbar-container #sidebar .sidebar-top {
         display: flex;
         flex-direction: column;
+        padding-top: 30px;
     }
 
-    .sidebar-title {
+    #toolbar-container #sidebar .sidebar-title {
         text-align: center;
         color: #00C2FF;
         font-size: 30px;
@@ -42,7 +57,7 @@
         font-family: 'Anton', sans-serif;
     }
 
-    #sidebar a {
+    #toolbar-container #sidebar a {
         text-decoration: none;
         color: #FFF1D0;
         padding: 15px 30px;
@@ -50,21 +65,21 @@
         transition: all 0.3s ease;
     }
 
-    #sidebar a:hover {
+    #toolbar-container #sidebar a:hover {
         background-color: #3A82F7;
         color: white;
         border-radius: 10px;
         margin-left: 10px;
     }
 
-    #sidebar a.active {
+    #toolbar-container #sidebar a.active {
         background-color: #00C2FF;
         color: #1e1e1e;
         border-radius: 10px;
         margin-left: 10px;
     }
 
-    .tutorial-button-bottom {
+    #toolbar-container #sidebar .tutorial-button-bottom {
         margin: 0 20px 50px 20px;
         font-size: 16px;
         background-color: #00C2FF;
@@ -76,73 +91,122 @@
         transition: background-color 0.3s ease;
     }
 
-    .tutorial-button-bottom:hover {
+    #toolbar-container #sidebar .tutorial-button-bottom:hover {
         background-color: #3A82F7;
         color: white;
     }
 
-    .tutorial-modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: rgba(0, 0, 0, 0.6);
-        display: none;
+    #toolbar-container #sidebar .sidebar-bottom {
+        padding: 0 20px 20px 20px;
+        display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: center;
-        z-index: 2000;
     }
 
-    .tutorial-modal-content {
-        background: white;
-        padding: 30px 40px;
+    #toolbar-container #sidebar .user-card {
+        background: linear-gradient(135deg, #00C2FF, #3A82F7);
         border-radius: 12px;
-        text-align: center;
-        max-width: 400px;
-        font-family: 'Mukta', sans-serif;
-    }
-
-    .tutorial-modal-content h2 {
-        margin-bottom: 20px;
-        font-size: 22px;
-        color: #002B5B;
-    }
-
-    .tutorial-modal-content button {
-        display: block;
-        width: 100%;
-        margin: 10px 0;
         padding: 10px;
-        font-size: 16px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        background: #00C2FF;
-        color: #fff;
-        transition: background 0.3s;
+        width: 100%;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        position: relative;
     }
 
-    .tutorial-modal-content button:hover {
-        background: #3A82F7;
+    #toolbar-container #sidebar .user-info-row {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+    }
+
+    #toolbar-container #sidebar .user-card img {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        margin-right: 10px;
+    }
+
+    #toolbar-container #sidebar .user-name {
+        font-family: 'Mukta', sans-serif;
+        font-weight: 600;
+        color: white;
+        font-size: 14px;
+    }
+
+    #toolbar-container #sidebar .logout-text {
+        display: none;
+        font-family: 'Mukta', sans-serif;
+        font-size: 14px;
+        font-weight: bold;
+        color: white;
+        padding-left: 2px;
+        animation: fadeIn 0.3s ease;
+        align-self: flex-start;
+        cursor: pointer;
+    }
+
+    #toolbar-container #sidebar .user-card.clicked .logout-text {
+        display: block;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-5px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 </style>
 
-<!-- Sidebar -->
-<div id="sidebar">
-    <div class="sidebar-top">
-        <div class="sidebar-title" data-intro="Welcome to Schedulizer – your smart scheduling assistant!" data-step="1">SHEDULIZER</div>
-        <a href="aboutme.php" id="link-o-meni" data-intro="Learn more about the app or its creator here." data-step="2">ABOUT ME</a>
-        <a href="calendar.php" id="link-koledar" data-intro="Manage your availability and shifts in the weekly calendar." data-step="3">CALENDAR</a>
-        <a href="settings.php" id="link-nastavitve" data-intro="Customize your account preferences and settings here." data-step="4">SETTINGS</a>
-        <a href="group.php" id="link-skupina" data-intro="Check who’s in your team or group." data-step="5">GROUP</a>
-    </div>
+<!-- TOOLBAR HTML -->
+<div id="toolbar-container">
+    <div id="sidebar">
+        <div class="sidebar-top">
+            <div class="sidebar-title">SHEDULIZER</div>
+            <a href="aboutme.php" id="link-o-meni">ABOUT ME</a>
+            <a href="calendar.php" id="link-koledar">CALENDAR</a>
+            <a href="settings.php" id="link-nastavitve">SETTINGS</a>
+            <a href="group.php" id="link-skupina">GROUP</a>
+            <?php if ($role === 'admin' || $role === 'moderator'): ?>
+                <a href="invite.php" id="link-invite">INVITE USERS</a>
+            <?php endif; ?>
+        </div>
 
-    <button class="tutorial-button-bottom" onclick="openTutorialModal()">📘 How it works?</button>
+        <button class="tutorial-button-bottom" onclick="openTutorialModal()">📘 How it works?</button>
+
+        <div class="sidebar-bottom">
+            <div class="user-card" id="userCard">
+                <div class="user-info-row" id="userInfo">
+                    <img src="380d2bf3-4656-40f6-bbfc-1f9d67c308ad.png" alt="User Avatar">
+                    <div class="user-name">
+                        <?php
+                        if (isset($_SESSION['username'])) {
+                            $parts = explode('.', $_SESSION['username']);
+                            $ime = ucfirst($parts[0]);
+                            $priimek = isset($parts[1]) ? ucfirst($parts[1]) : '';
+                            echo "$ime $priimek";
+                        } else {
+                            echo "Guest";
+                        }
+                        ?>
+                    </div>
+                </div>
+                <div class="logout-text" id="logoutText">
+                    <i class="fas fa-right-from-bracket"></i> <span>Log out</span>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- Tutorial Modal -->
-<div class="tutorial-modal" id="tutorialModal">
+<!-- Modal -->
+<div class="tutorial-modal" id="tutorialModal" style="display:none;">
     <div class="tutorial-modal-content">
         <h2>What would you like to see?</h2>
         <button onclick="startToolbarTour()">🧭 Just the Toolbar</button>
@@ -150,52 +214,42 @@
     </div>
 </div>
 
+<!-- JS Logic -->
 <script>
-    const links = document.querySelectorAll('#sidebar a');
-    links.forEach(link => {
-        link.addEventListener('click', function() {
-            links.forEach(l => l.classList.remove('active'));
-            this.classList.add('active');
+    document.addEventListener("DOMContentLoaded", function() {
+        const userCard = document.getElementById("userCard");
+        const userInfo = document.getElementById("userInfo");
+        const logoutText = document.getElementById("logoutText");
+
+        userInfo.addEventListener("click", () => {
+            userCard.classList.toggle("clicked");
         });
+
+        logoutText.addEventListener("click", (e) => {
+            e.stopPropagation();
+            window.location.href = "logout.php";
+        });
+
+        document.querySelectorAll('#sidebar a').forEach(link => {
+            link.addEventListener('click', function() {
+                document.querySelectorAll('#sidebar a').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        window.openTutorialModal = function() {
+            document.getElementById("tutorialModal").style.display = "flex";
+        }
+
+        window.startToolbarTour = function() {
+            document.getElementById("tutorialModal").style.display = "none";
+            introJs().start();
+        }
+
+        window.goToCalendar = function() {
+            window.location.href = "calendar.php?tutorial=true";
+        }
     });
-
-    function openTutorialModal() {
-        document.getElementById("tutorialModal").style.display = "flex";
-    }
-
-    function startToolbarTour() {
-        document.getElementById("tutorialModal").style.display = "none";
-        introJs().setOptions({
-            steps: [{
-                    element: document.querySelector('.sidebar-title'),
-                    intro: "👋 Welcome to Schedulizer – your smart scheduling assistant!"
-                },
-                {
-                    element: document.querySelector('#link-o-meni'),
-                    intro: "📄 Personal info and password settings."
-                },
-                {
-                    element: document.querySelector('#link-koledar'),
-                    intro: "📆 Your weekly calendar and shift editor."
-                },
-                {
-                    element: document.querySelector('#link-nastavitve'),
-                    intro: "⚙️ Change your app language or theme."
-                },
-                {
-                    element: document.querySelector('#link-skupina'),
-                    intro: "👥 View your group or team members."
-                }
-            ]
-        }).start();
-    }
-
-    function goToCalendar() {
-        window.location.href = "calendar.php?tutorial=true";
-    }
-
-    function startFullTour() {
-        document.getElementById("tutorialModal").style.display = "none";
-        introJs().start();
-    }
 </script>
+
+<?php ob_end_flush(); ?>
