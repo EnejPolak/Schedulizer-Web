@@ -1,4 +1,5 @@
 <?php
+
 // ————————————————————————————
 // DEBUG: show all PHP errors
 // ————————————————————————————
@@ -10,6 +11,12 @@ session_start();
 require 'db_connect.php';
 
 // 1) Must be logged in
+
+session_start();
+require 'db_connect.php';
+
+// 1) If not logged in, redirect to login
+
 if (empty($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
@@ -24,11 +31,20 @@ $currentEmail = $userStmt->fetchColumn();
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Trim whitespace around the token
+
+// 2) Include your toolbar (so sidebar, theme, etc. still work)
+include 'toolbar.php';
+
+// 3) Handle the form submission
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
     $code = trim($_POST['invite_code'] ?? '');
 
     if ($code === '') {
         $error = 'Please enter your invite code.';
     } else {
+
         // 4) Look up in invites table
         $inviteStmt = $pdo->prepare("
             SELECT id, company_id, email, role, expires_at
@@ -71,6 +87,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ->execute([$invite['id']]);
 
             // 8) Redirect into the app
+
+        // 4) Look up the token, ensure it's unused:
+        $stmt = $pdo->prepare("
+          SELECT id, company_id, recipient_id
+            FROM invite_tokens
+           WHERE token = ?
+             AND used_at IS NULL
+           LIMIT 1
+        ");
+        $stmt->execute([$code]);
+        $invite = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (! $invite) {
+            $error = 'Invalid or expired code.';
+        } elseif ((int)$invite['recipient_id'] !== (int)$_SESSION['user_id']) {
+            $error = 'This code was not issued to your account.';
+        } else {
+            // 5) Add user to that company
+            $pdo->prepare("
+              INSERT INTO user_companies (user_id, company_id)
+              VALUES (?, ?)
+            ")->execute([
+              $_SESSION['user_id'],
+              $invite['company_id']
+            ]);
+
+            // 6) Mark the token as used
+            $pdo->prepare("
+              UPDATE invite_tokens
+                 SET used_at = NOW()
+               WHERE id = ?
+            ")->execute([$invite['id']]);
+
+            // 7) All done → redirect into the app
+
             header('Location: calendar.php');
             exit;
         }
@@ -293,10 +344,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 
+
 <body>
     <!-- ✅ TOP NOTICE -->
     <div class="top-notice">
         <h2>Seems like you are not in any group – <span>start with Schedulizer!</span></h2>
+
+<body>
+    <!-- ✅ TOP NOTICE -->
+    <div class="top-notice">
+        <h2>
+            Seems like you are not in any group – <span>start with Schedulizer!</span>
+        </h2>
+
     </div>
 
     <!-- ✅ MAIN WRAPPER -->
@@ -306,7 +366,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="box clickable" onclick="window.location.href='store.php'">
             <h1>Buy a plan</h1>
             <h3>and start with Schedulizer today</h3>
+
             <img src="https://i.ibb.co/fGqjmchS/skupna-slika.png" alt="Schedulizer Plans" class="plan-image">
+
+            <img src="https://i.ibb.co/fGqjmchS/skupna-slika.png"
+                 alt="Schedulizer Plans"
+                 class="plan-image">
+
         </div>
 
         <!-- MIDDLE: OR -->
@@ -315,6 +381,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- RIGHT: CODE BOX -->
         <div class="box code-box">
             <h2>Enter a code you got</h2>
+
             <p>Enter the access code sent to your email by your boss or manager to unlock your schedule group.</p>
 
             <!-- show any error message -->
@@ -331,6 +398,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     placeholder="Enter your code here"
                     class="form-control"
                     required>
+
+            <p>
+              Enter the access code sent to your email by your boss or manager
+              to unlock your schedule group.
+            </p>
+
+            <!-- show any error message -->
+            <?php if ($error): ?>
+              <div style="color:salmon; margin-bottom:10px; font-weight:bold;">
+                <?= htmlspecialchars($error) ?>
+              </div>
+            <?php endif; ?>
+
+            <form method="POST">
+                <input type="text"
+                       name="invite_code"
+                       placeholder="Enter your code here"
+                       required>
+
                 <br>
                 <button type="submit">Verify</button>
             </form>

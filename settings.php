@@ -315,6 +315,29 @@ if ($user_id) {
             /* or your preferred width */
         }
 
+        body.dark .settings-wrapper h2 {
+            font-size: 40px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #6D28D9;
+            /* temna vijolična */
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        body.dark label {
+            display: block;
+            margin-top: 20px;
+            font-weight: bold;
+            font-size: 18px;
+            color: #D8B4FE;
+            /* svetla vijolična */
+            letter-spacing: 2px;
+        }
+
+
+
         select {
             width: 100%;
             max-width: 400px;
@@ -1159,6 +1182,7 @@ if ($user_id) {
         const toggleBtn = document.querySelector("#darkmode-toggle");
         const syncCheckbox = document.querySelector("#sync");
 
+
         // 1) Ob naloženju poberi iz baze
         fetch('get_theme.php')
             .then(res => res.json())
@@ -1177,6 +1201,34 @@ if ($user_id) {
             toggleBtn.setAttribute("aria-pressed", newMode === 0 ? "true" : "false");
             document.body.classList.toggle("dark", newMode === 0);
 
+
+        window.addEventListener("DOMContentLoaded", () => {
+            const isPressed = toggleBtn.getAttribute("aria-pressed") === "true";
+            if (isPressed) {
+                document.body.classList.add("dark");
+            } else {
+                document.body.classList.remove("dark");
+            }
+        });
+
+        const toggleDarkMode = () => {
+            const isPressed = toggleBtn.getAttribute("aria-pressed") === "true";
+            const newMode = isPressed ? 0 : 1; // 1 = light, 0 = dark
+
+            // Preklopi vizualno
+            toggleBtn.setAttribute("aria-pressed", newMode ? "true" : "false");
+
+            if (syncCheckbox && syncCheckbox.checked) {
+                // Uporabi class, ne attribute, za takojšen styling
+                if (newMode === 0) {
+                    document.body.classList.add("dark");
+                } else {
+                    document.body.classList.remove("dark");
+                }
+            }
+
+            // Shrani v bazo
+
             fetch('save_theme.php', {
                 method: 'POST',
                 headers: {
@@ -1186,8 +1238,20 @@ if ($user_id) {
                     light_mode: newMode
                 })
             });
+
         });
     </script>
+
+        };
+
+        toggleBtn.addEventListener("click", toggleDarkMode);
+    </script>
+
+
+
+
+
+
 </body>
 
 </html>
