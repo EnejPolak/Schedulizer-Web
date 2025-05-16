@@ -5,28 +5,27 @@ include 'toolbar.php';
 
 $user_id = $_SESSION['user_id'] ?? null;
 $existingAvailability = [];
-$swapRequests = [];
+$swapRequests        = [];
+$lockRanges          = [];  // ← nov array za shranjevanje zaklepnih intervalov
 
 if ($user_id) {
+    // preberi vlogo uporabnika
     $stmt = $pdo->prepare("SELECT user_role FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
-    $role = $stmt->fetchColumn();
+    $role    = $stmt->fetchColumn();
     $isAdmin = ($role === 'admin' || $role === 'moderator');
+
     // 🟢 Preberi obstoječo razpoložljivost
     $stmt = $pdo->prepare("SELECT date, time, available, not_available FROM calendar WHERE users_id = ?");
     $stmt->execute([$user_id]);
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        if ($row['available']) {
-            $availability = 'can';
-        } elseif ($row['not_available']) {
-            $availability = 'cant';
-        } else {
-            continue;
-        }
+        if ($row['available'])       $availability = 'can';
+        elseif ($row['not_available']) $availability = 'cant';
+        else                          continue;
 
         $existingAvailability[] = [
-            'date' => $row['date'],
-            'time' => $row['time'],
+            'date'         => $row['date'],
+            'time'         => $row['time'],
             'availability' => $availability
         ];
     }
@@ -35,17 +34,13 @@ if ($user_id) {
     $stmt = $pdo->prepare("SELECT swap_date, swap_time, status FROM swap WHERE users_id = ? AND is_active = 1");
     $stmt->execute([$user_id]);
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        if ($row['status'] === 'accepted') {
-            $availability = 'cant'; // rdeča
-        } elseif ($row['status'] === 'declined') {
-            $availability = 'can'; // nazaj v zeleno
-        } else {
-            $availability = 'swap'; // rumena
-        }
+        if ($row['status'] === 'accepted') $availability = 'cant';
+        elseif ($row['status'] === 'declined') $availability = 'can';
+        else                                   $availability = 'swap';
 
         $existingAvailability[] = [
-            'date' => $row['swap_date'],
-            'time' => $row['swap_time'],
+            'date'         => $row['swap_date'],
+            'time'         => $row['swap_time'],
             'availability' => $availability
         ];
     }
@@ -57,26 +52,57 @@ if ($user_id) {
         WHERE s.users_id != ?
           AND s.is_active = 1
           AND NOT EXISTS (
-              SELECT 1 FROM swap_responses r
-              WHERE r.swap_id = s.id AND r.user_id = ?
+              SELECT 1
+              FROM swap_responses r
+              WHERE r.swap_id = s.id
+                AND r.user_id = ?
           )
     ");
     $stmt->execute([$user_id, $user_id]);
     $swapRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if ($isAdmin) {
-        $stmt = $pdo->query("
-        SELECT c.date, c.time, u.username, u.id as user_id
-        FROM calendar c
-        JOIN users u ON c.users_id = u.id
-        WHERE c.available = 1
-    ");
-        $allAvailability = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // 1) Poberemo ID-je podjetij, kjer je ta admin član
+        $stmt = $pdo->prepare("SELECT company_id FROM user_companies WHERE user_id = ?");
+        $stmt->execute([$user_id]);
+        $companyIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // 2) Če ni nobenega, vrnemo prazen niz
+        if (empty($companyIds)) {
+            $allAvailability = [];
+        } else {
+            // 3) Sestavimo placeholderje za IN (?,?,...)
+            $placeholders = implode(',', array_fill(0, count($companyIds), '?'));
+
+            // 4) Povlečemo samo razpoložljivost uporabnikov iz teh podjetij
+            $sql = "
+                SELECT c.date,
+                       c.time,
+                       u.username,
+                       u.id AS user_id
+                FROM calendar c
+                  JOIN users u          ON c.users_id = u.id
+                  JOIN user_companies uc ON uc.user_id = u.id
+                WHERE c.available = 1
+                  AND uc.company_id IN ($placeholders)
+            ";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($companyIds);
+            $allAvailability = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
     }
+
+    // 🔒 Pridobi zaklepne intervale tega uporabnika
+    $stmt = $pdo->prepare("
+        SELECT week_start_date, week_end_date
+        FROM schedule_locks
+        WHERE user_id = ?
+    ");
+    $stmt->execute([$user_id]);
+    $lockRanges = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
-
-
 ?>
+
 
 
 
@@ -789,6 +815,126 @@ if ($user_id) {
                 transform: translate(-50%, -50%);
             }
         }
+
+
+        /* ==== DARK MODE za calendar.php – enaka paleta kot sidebar ==== */
+        body.dark #main-content {
+            background: radial-gradient(circle at top left, #1E1B2E, #140B2D, #0F0C1D);
+            color: #C4B5FD;
+        }
+
+        /* Kontejner koledarja */
+        body.dark .calendar-wrapper {
+            background: #2A1A4F;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        /* Naslovi dni in ure */
+        body.dark .week-header,
+        body.dark .header,
+        body.dark .time-label {
+            color: #D8B4FE;
+        }
+
+        /* Gumbi “<”, “>”, “Today” */
+        body.dark .arrow-btn,
+        body.dark .today-btn {
+            background: linear-gradient(to right, #7C3AED, #5B21B6, #2E1065);
+            color: #EDE9FE;
+        }
+
+        body.dark .arrow-btn:hover,
+        body.dark .today-btn:hover {
+            background: linear-gradient(to right, #2E1065, #5B21B6, #7C3AED);
+        }
+
+        /* Celice */
+        body.dark .calendar-cell {
+            background: #1C1B29;
+            border: 2px solid #4C1D95;
+            color: #C4B5FD;
+        }
+
+        /* Danes izstopa z gradientom iz sidebar gumba */
+        body.dark .today {
+            background: linear-gradient(135deg, #7C3AED, #5B21B6);
+            color: #fff;
+            box-shadow: 0 4px 10px rgba(124, 58, 237, 0.6);
+        }
+
+        /* IZJEMA: ohrani original za available / not_available */
+        body.dark .calendar-cell.available,
+        body.dark .calendar-cell.not_available {
+            background: #f0f0f0;
+            border-color: black;
+            color: black;
+        }
+
+        /* Radio gumbi */
+        body.dark .radio-options input[type="radio"] {
+            filter: brightness(1.2);
+        }
+
+        body.dark input[type="radio"][value="holiday"]:checked {
+            accent-color: #6D28D9;
+            /* lavender */
+        }
+
+        /* Pošlji gumb */
+        body.dark .send-schedule-btn {
+            background: linear-gradient(45deg, #7C3AED, #5B21B6, #2E1065);
+        }
+
+        body.dark .send-schedule-btn:hover {
+            box-shadow: 0 0 15px rgba(124, 58, 237, 0.7);
+        }
+
+        /* Mali koledar */
+        body.dark .small-calendar {
+            background: #140B2D;
+        }
+
+        body.dark .small-calendar .month-grid div,
+        body.dark .small-calendar .day-grid div {
+            background: #2A1A4F;
+            color: #C4B5FD;
+            border: 1px solid #4C1D95;
+        }
+
+        body.dark .small-calendar .month-grid div:hover,
+        body.dark .small-calendar .day-grid div:hover {
+            background: #7C3AED;
+            color: #1E1B2E;
+        }
+
+        body.dark .small-calendar .navigation button {
+            background: #7C3AED;
+            color: #EDE9FE;
+        }
+
+        body.dark .small-calendar .navigation button:hover {
+            background: #5B21B6;
+        }
+
+        /* Swap-modal in LockConfirm-modal */
+        body.dark .swap-modal-content,
+        body.dark #lockConfirmModal {
+            background: #1C1B29;
+            color: #C4B5FD;
+            border-color: #7C3AED;
+        }
+
+        body.dark .swap-modal-btn,
+        body.dark #lockConfirmYes {
+            background: #7C3AED;
+        }
+
+        body.dark .swap-modal-btn:hover,
+        body.dark #lockConfirmYes:hover {
+            background: #5B21B6;
+        }
+
+        /* Pupe (swal) in overlay: pustimo nespremenjene */
     </style>
 </head>
 
@@ -913,16 +1059,18 @@ if ($user_id) {
 </div>
 
 
+
 <script>
     const isAdmin = <?= json_encode($isAdmin); ?>;
     <?php if ($isAdmin): ?>
         const adminAvailabilityFull = <?= json_encode($allAvailability); ?>;
     <?php endif; ?>
-    const preloadedAvailability = <?php echo json_encode($existingAvailability); ?>;
+    let preloadedAvailability = <?= json_encode($existingAvailability); ?>;
     const activeSwapMap = new Map();
     console.log(preloadedAvailability);
     let inspectMode = false;
     let scheduleLocked = false;
+    const lockRanges = <?= json_encode($lockRanges, JSON_UNESCAPED_SLASHES); ?>;
 
 
 
@@ -954,7 +1102,6 @@ if ($user_id) {
             cell.style.backgroundColor = '#e0e0ff';
             cell.style.borderColor = '#6a5acd';
         }
-        updateSwapButton();
     }
 
     // — Utility za preverjanje zelene celice —
@@ -997,169 +1144,248 @@ if ($user_id) {
         });
     }
 
-    function updateWeek() {
-        const monday = getMonday(currentDate);
-        const sunday = new Date(monday);
-        sunday.setDate(sunday.getDate() + 6);
+    function resetLockUI() {
+        // odklenej vse radio gumbe
+        document.querySelectorAll('input[name="availability"]').forEach(radio => {
+            radio.disabled = false;
+            radio.parentElement.style.opacity = '1';
+        });
 
-        monday.setHours(0, 0, 0, 0);
-        sunday.setHours(0, 0, 0, 0);
+        // odklenej vse Send/Confirm gumbe
+        document.querySelectorAll('.send-schedule-btn').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        });
 
-        document.getElementById("weekRange").textContent =
-            "Week: " + formatDate(monday) + " – " + formatDate(sunday);
-
-        const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        let isPastWeek = true;
-
-        for (let i = 0; i < 7; i++) {
-            const day = new Date(monday);
-            day.setDate(monday.getDate() + i);
-
-            const header = document.getElementById('day' + i);
-            header.innerHTML =
-                dayNames[i] + "<br>" +
-                day.toLocaleDateString('sl-SI', {
-                    day: '2-digit',
-                    month: '2-digit'
-                }) + "<br>" +
-                (day.getMonth() + 1) + ".";
-
-            day.setHours(0, 0, 0, 0);
-            header.classList.toggle('today', day.getTime() === today.getTime());
-            if (day.getTime() >= today.getTime()) isPastWeek = false;
-        }
-
-        // Resetiraj celice
+        // odklenej vse celice
         cells.forEach(cell => {
-            cell.innerHTML = '';
-            cell.style.backgroundColor = '#f0f0f0';
-            cell.style.borderColor = 'black';
             cell.style.pointerEvents = 'auto';
             cell.style.opacity = '1';
         });
 
-        // Zakleni, če je pretekli teden
-        if (isPastWeek) {
-            cells.forEach(cell => {
-                cell.style.backgroundColor = '#ddd';
-                cell.style.pointerEvents = 'none';
+        // Privzeto onemogoči swap radio
+        const swapRadio = document.getElementById('swap-radio');
+        swapRadio.disabled = true;
+        swapRadio.parentElement.style.opacity = '0.5';
+    }
+
+    // 3) vse celice odkleneš
+    cells.forEach(cell => {
+        cell.style.pointerEvents = 'auto';
+        cell.style.opacity = '1';
+    });
+
+
+    function getCellIndexByDateTime(dateStr, timeStr) {
+        // 1) parse date: '2025-05-25'
+        const [Y, M, D] = dateStr.split('-').map(Number);
+        const d = new Date(Y, M - 1, D);
+        // 2) dan v tednu 0=ned,1=pon,…,6=sob
+        const dow = d.getDay();
+        // 3) pretvori na 0=pon,…,5=sob,6=ned
+        const dayIndex = (dow === 0 ? 6 : dow - 1);
+        // 4) slot 07→0, 11→1, 15→2
+        let slotIndex = 0;
+        if (timeStr.startsWith('11')) slotIndex = 1;
+        else if (timeStr.startsWith('15')) slotIndex = 2;
+        // 5) končni indeks
+        return slotIndex * 7 + dayIndex;
+    }
+
+
+    async function updateWeek() {
+        // izračunaj ponedeljek in nedeljo
+        const monday = getMonday(currentDate);
+        monday.setHours(0, 0, 0, 0);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(0, 0, 0, 0);
+
+        // posodobi naslov
+        document.getElementById("weekRange").textContent =
+            "Week: " + formatDate(monday) + " – " + formatDate(sunday);
+
+        // preberi lock status
+        try {
+            const res = await fetch("lock_status.php", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    weekStartDate: monday.toISOString().slice(0, 10)
+                })
             });
+            const json = await res.json();
+            scheduleLocked = !!json.locked;
+        } catch (e) {
+            console.error("Lock status fetch failed:", e);
+            scheduleLocked = false;
         }
 
-        document.querySelectorAll('input[name="availability"]').forEach(radio => {
-            radio.disabled = isPastWeek;
+        // napiši dneve
+        const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let isPastWeek = true;
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            const hdr = document.getElementById("day" + i);
+            hdr.innerHTML =
+                `${dayNames[i]}<br>${d.toLocaleDateString("sl-SI",{day:'2-digit',month:'2-digit'})}<br>${d.getMonth()+1}.`;
+            hdr.classList.toggle("today", d.getTime() === today.getTime());
+            if (d.getTime() >= today.getTime()) isPastWeek = false;
+        }
+
+        // počisti celice
+        cells.forEach(cell => {
+            cell.innerHTML = "";
+            cell.style.backgroundColor = "#f0f0f0";
+            cell.style.borderColor = "black";
+            cell.style.pointerEvents = "auto";
+            cell.style.opacity = "1";
         });
-        document.querySelector('.send-schedule-btn').disabled = isPastWeek;
 
-        // 🔍 Če je izbran "inspect" način in admin
-        if (selectedAvailability === 'inspect' && isAdmin && typeof adminAvailabilityFull !== 'undefined') {
-            adminAvailabilityFull.forEach(entry => {
-                const dateParts = entry.date.split('-');
-                const entryDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-                entryDate.setHours(0, 0, 0, 0);
-
-
-
-                if (entryDate >= monday && entryDate <= sunday) {
-                    const jsDay = entryDate.getDay();
-                    const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
-
-                    let slotIndex = 0;
-                    if (entry.time.startsWith("11")) slotIndex = 1;
-                    else if (entry.time.startsWith("15")) slotIndex = 2;
-
-                    const cellIndex = slotIndex * 7 + dayIndex;
-                    if (!cells[cellIndex]) return;
-
-                    const div = document.createElement('div');
-                    div.style.display = 'flex';
-                    div.style.alignItems = 'center';
-                    div.style.justifyContent = 'space-between';
-                    div.style.fontSize = '12px';
-                    div.style.textAlign = 'left';
-                    div.style.lineHeight = '1.1';
-                    div.style.color = '#007acc';
-                    div.style.fontWeight = '500';
-                    div.style.padding = '3px 4px';
-
-                    const nameSpan = document.createElement('span');
-                    nameSpan.textContent = entry.username;
-
-                    const removeBtn = document.createElement('button');
-                    removeBtn.textContent = '×';
-                    removeBtn.style.border = 'none';
-                    removeBtn.style.background = 'transparent';
-                    removeBtn.style.color = '#b30000';
-                    removeBtn.style.cursor = 'pointer';
-                    removeBtn.style.fontWeight = 'bold';
-                    removeBtn.style.fontSize = '14px';
-                    removeBtn.style.marginLeft = '8px';
-
-                    removeBtn.onclick = () => {
-                        fetch('admin_remove_user_from_shift.php', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    user_id: entry.user_id,
-                                    date: entry.date,
-                                    time: entry.time
-                                })
-                            })
-                            .then(res => res.json())
-                            .then(data => {
-                                if (data.success) {
-                                    div.remove(); // odstrani samo ta element iz celice
-                                } else {
-                                    alert("❌ Napaka pri odstranitvi: " + data.error);
-                                }
-                            })
-                            .catch(err => {
-                                console.error("Napaka pri fetchu:", err);
-                                alert("❌ Strežniška napaka pri odstranitvi.");
-                            });
-                    };
-
-
-                    div.appendChild(nameSpan);
-                    div.appendChild(removeBtn);
-                    cells[cellIndex].appendChild(div);
-                }
-            });
-
-            updateSwapButton();
-            return; // 👉 ustavi tukaj, da ne barva običajno
-        }
-
-        // ✅ Običajno barvanje razpoložljivosti
+        // vedno nariši tvoje barve
         preloadedAvailability.forEach(entry => {
-            const dateParts = entry.date.split('-');
-            const entryDate = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-            entryDate.setHours(0, 0, 0, 0);
-
-            if (entryDate >= monday && entryDate <= sunday) {
-                const jsDay = entryDate.getDay();
-                const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
-
-                let slotIndex = null;
-                if (entry.time.startsWith("07")) slotIndex = 0;
-                else if (entry.time.startsWith("11")) slotIndex = 1;
-                else if (entry.time.startsWith("15")) slotIndex = 2;
-
-                if (slotIndex !== null) {
-                    const cellIndex = slotIndex * 7 + dayIndex;
-                    if (cells[cellIndex]) {
-                        colorCell(cells[cellIndex], entry.availability);
-                    }
-                }
+            const [Y, M, D] = entry.date.split("-").map(Number);
+            const ed = new Date(Y, M - 1, D);
+            ed.setHours(0, 0, 0, 0);
+            if (ed >= monday && ed <= sunday) {
+                const dow = ed.getDay() === 0 ? 6 : ed.getDay() - 1;
+                const slot = entry.time.startsWith("15") ? 2 : entry.time.startsWith("11") ? 1 : 0;
+                const idx = slot * 7 + dow;
+                if (cells[idx]) colorCell(cells[idx], entry.availability);
             }
         });
 
-        updateSwapButton();
+        // inspect: admin vidi samo ostale vnose
+        const inspectRadio = document.querySelector('input[name="availability"][value="inspect"]');
+        if (inspectRadio?.checked && isAdmin) {
+            // clear backgrounds & contents
+            cells.forEach(cell => {
+                cell.innerHTML = "";
+                cell.style.backgroundColor = "#f0f0f0";
+                cell.style.borderColor = "black";
+            });
+
+            adminAvailabilityFull.forEach(entry => {
+                const ed = new Date(entry.date);
+                ed.setHours(0, 0, 0, 0);
+                if (ed < monday || ed > sunday) return;
+
+                const dow = ed.getDay() === 0 ? 6 : ed.getDay() - 1;
+                const slot = entry.time.startsWith("15") ? 2 :
+                    entry.time.startsWith("11") ? 1 : 0;
+                const idx = slot * 7 + dow;
+
+                // create container exactly like your swap‐list items
+                const div = document.createElement("div");
+                div.style.cssText = "display:flex;justify-content:space-between;font-size:12px;color:#00C2FF;padding:3px;";
+
+                const name = document.createElement("span");
+                name.textContent = entry.username;
+
+                const btn = document.createElement("button");
+                btn.textContent = "×";
+                btn.style.cssText = "border:none;background:transparent;color:#B30000;cursor:pointer;";
+                btn.onclick = () => {
+                    // call your admin_remove_user_from_shift endpoint
+                    fetch('admin_remove_user_from_shift.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            user_id: entry.user_id,
+                            date: entry.date,
+                            time: entry.time
+                        })
+                    }).then(r => r.json()).then(d => {
+                        if (d.success) div.remove();
+                        else alert("Error: " + d.error);
+                    });
+                };
+
+                div.append(name, btn);
+                cells[idx].appendChild(div);
+            });
+
+            applyLockUI();
+            return;
+        }
+
+        // ko je teden zaklenjen, ohrani barve in kliči lockUI
+        if (scheduleLocked) {
+            applyLockUI();
+            return;
+        }
+
+        // če ni zaklenjen: odpri vse (privzeto swap še vedno onemogočen)
+        resetLockUI();
+
+        // pretečen teden?
+        if (isPastWeek) {
+            cells.forEach(c => {
+                c.style.backgroundColor = "#ddd";
+                c.style.pointerEvents = "none";
+            });
+            document.querySelectorAll('input[name="availability"]').forEach(r => r.disabled = true);
+            document.querySelectorAll('.send-schedule-btn').forEach(b => b.disabled = true);
+            return;
+        }
+
+
     }
+
+
+
+
+    function hasAvailableCell() {
+        // vrne true, če je vsaj ena celica obarvana zeleno
+        return cells.some(cell => isGreen(cell));
+    }
+
+
+    function applyLockUI() {
+        if (!scheduleLocked) return;
+
+        // onemogoči vse radio gumbe, razen swap če imamo zelene celice
+        document.querySelectorAll('input[name="availability"]').forEach(radio => {
+            if (radio.value === 'swap' && hasAvailableCell()) {
+                radio.disabled = false;
+                radio.parentElement.style.opacity = '1';
+            } else {
+                radio.disabled = true;
+                radio.parentElement.style.opacity = '0.5';
+            }
+        });
+
+        // onemogoči vse Send/Confirm gumbe
+        document.querySelectorAll('.send-schedule-btn').forEach(btn => {
+            btn.disabled = true;
+        });
+
+        // onemogoči klikanje na celice
+        cells.forEach(cell => {
+            cell.style.pointerEvents = 'none';
+            cell.style.opacity = '0.6';
+        });
+    }
+
+    // 2) Gumb Send/Confirm onemogoči
+    document.querySelectorAll('.send-schedule-btn')
+        .forEach(btn => btn.disabled = true);
+
+    // 3) Onemogoči vse klike na celice
+    cells.forEach(cell => {
+        cell.style.pointerEvents = 'none';
+        cell.style.opacity = '0.6';
+    });
+
+
+
 
 
 
@@ -1341,7 +1567,7 @@ if ($user_id) {
                 // deluj samo na že zelenih celicah
                 if (!isGreen(cell)) return;
 
-
+                // odpri modal za vnos razloga
                 swapReasonModal.style.display = 'block';
                 lastSelectedGreenCell = cell;
 
@@ -1382,7 +1608,6 @@ if ($user_id) {
                     // 🔄 Vizualne spremembe
                     colorCell(lastSelectedGreenCell, 'swap');
                     unsavedChanges = false;
-                    updateSwapButton();
 
                     // 🆕 Dodaj zahtevo pod koledar
                     fetch('session_user_id.php') // ustvari nov PHP endpoint, ki vrne session user_id
@@ -1428,9 +1653,18 @@ if ($user_id) {
     }
 
     function getDateFromIndex(dayIndex) {
-        const monday = getMonday(currentDate);
-        monday.setDate(monday.getDate() + dayIndex);
-        return monday.toISOString().split('T')[0]; // npr. "2025-05-10"
+        // 1) Izračunaj ponedeljek tega tedna in ga kloniraj
+        const base = new Date(getMonday(currentDate).getTime());
+        // 2) Izniči učinek ure, minute, sekunde
+        base.setHours(0, 0, 0, 0);
+        // 3) Premakni za dayIndex dni naprej
+        base.setDate(base.getDate() + dayIndex);
+
+        // 4) Sestavi YYYY-MM-DD iz lokalnih komponent
+        const YYYY = base.getFullYear();
+        const MM = String(base.getMonth() + 1).padStart(2, '0');
+        const DD = String(base.getDate()).padStart(2, '0');
+        return `${YYYY}-${MM}-${DD}`;
     }
 
     function getTimeFromSlot(slotIndex) {
@@ -1443,16 +1677,12 @@ if ($user_id) {
 
         cells.forEach((cell, index) => {
             let availability = getAvailabilityFromColor(cell);
-
-            // Če ni označeno, avtomatsko obarvaj in pošlji kot 'cant'
             if (!availability) {
                 availability = 'cant';
-                colorCell(cell, 'cant'); // tudi vizualno obarvamo
+                colorCell(cell, 'cant');
             }
-
             const dayIndex = index % 7;
             const slotIndex = Math.floor(index / 7);
-
             const date = getDateFromIndex(dayIndex);
             const time = getTimeFromSlot(slotIndex);
 
@@ -1478,6 +1708,11 @@ if ($user_id) {
                     document.getElementById("popup").style.display = "block";
                     setTimeout(() => document.getElementById("popup").style.display = "none", 1000);
                     unsavedChanges = false;
+
+                    // osveži lokalno kopijo in nariši barve
+                    preloadedAvailability = dataToSend.slice();
+                    updateWeek();
+
                     hideOverlay();
                 } else {
                     alert("❌ Napaka pri shranjevanju: " + res.error);
@@ -1716,43 +1951,69 @@ if ($user_id) {
     updateWeek();
 
     document.getElementById("lockConfirmYes").addEventListener("click", () => {
-        closeLockModal();
+        // izračunaj ponedeljek trenutnega tedna kot YYYY-MM-DD
+        const monday = getMonday(currentDate).toISOString().split('T')[0];
 
-        inspectMode = false;
-        selectedAvailability = null;
+        // pošlji v lock_schedule.php
+        fetch('lock_schedule.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    weekStartDate: monday
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    return alert("❌ Napaka pri zaklepu urnika: " + (data.error || "neznana napaka"));
+                }
 
-        // počisti inspect prikaz
-        cells.forEach(cell => {
-            cell.innerHTML = ''; // odstrani admin imena
-        });
+                // zapri modal
+                closeLockModal();
 
-        // ponovna osvežitev tedna brez inspect logike
-        updateWeek();
+                // onemogoči inspect način
+                inspectMode = false;
+                selectedAvailability = null;
 
-        // odznači vse radio gumbe
-        document.querySelectorAll('input[name="availability"]').forEach(radio => {
-            radio.checked = false;
-        });
+                // počisti morebitne admin vnose
+                cells.forEach(cell => cell.innerHTML = '');
 
+                // osveži teden brez inspect logike
+                updateWeek();
 
-        cells.forEach(cell => {
-            cell.style.pointerEvents = 'none';
-            cell.style.opacity = '0.6';
-        });
+                // odznači radio gumbe
+                document.querySelectorAll('input[name="availability"]').forEach(radio => {
+                    radio.checked = false;
+                });
 
-        const swapRadio = document.getElementById("swap-radio");
-        if (swapRadio) {
-            swapRadio.disabled = true;
-            swapRadio.parentElement.style.opacity = "0.3";
-        }
+                // onemogoči vse celice
+                cells.forEach(cell => {
+                    cell.style.pointerEvents = 'none';
+                    cell.style.opacity = '0.6';
+                });
 
-        // 👇 Tukaj zamenjaj alert z naslednjim
-        const popup = document.getElementById("popup");
-        popup.textContent = "✅ Week confirmed. Schedule is now locked.";
-        popup.className = "popup-message";
-        popup.style.display = "block";
-        setTimeout(() => popup.style.display = "none", 2000);
+                // onemogoči swap radio
+                const swapRadio = document.getElementById("swap-radio");
+                if (swapRadio) {
+                    swapRadio.disabled = true;
+                    swapRadio.parentElement.style.opacity = "0.3";
+                }
+
+                // pokaži potrdilni popup
+                const popup = document.getElementById("popup");
+                popup.textContent = "✅ Week confirmed. Schedule is now locked.";
+                popup.className = "popup-message";
+                popup.style.display = "block";
+                setTimeout(() => popup.style.display = "none", 2000);
+            })
+            .catch(err => {
+                console.error("Fetch napaka:", err);
+                alert("❌ Napaka pri povezavi s strežnikom.");
+            });
     });
+
 
 
 

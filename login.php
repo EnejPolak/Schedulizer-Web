@@ -8,11 +8,12 @@ $email    = $_POST['email']       ?? '';
 $password = $_POST['password']    ?? '';
 $username = $_POST['username']    ?? '';
 
-// LOGIN
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
     $email    = trim($email);
     $password = trim($password);
 
+    // Basic validation
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid email address.';
     } elseif ($password === '') {
@@ -20,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
     }
 
     if (empty($errors)) {
+        // Fetch user
         $stmt = $pdo->prepare("SELECT id, password_hash FROM users WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -29,20 +31,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
         } elseif (!password_verify($password, $user['password_hash'])) {
             $errors[] = 'Incorrect password.';
         } else {
-            $_SESSION['user_id'] = $user['id'];
+            // Success! Store in session
+            $_SESSION['user_id']  = $user['id'];
 
-            // 🔍 Zraven pridobi tudi username
+            // Get their username too
             $stmt2 = $pdo->prepare("SELECT username FROM users WHERE id = ?");
             $stmt2->execute([$user['id']]);
             $row = $stmt2->fetch(PDO::FETCH_ASSOC);
+            $_SESSION['username'] = $row['username'];
 
-            $_SESSION['username'] = $row['username']; // npr. enej.polak
+            // Check company membership
+            $stmt3 = $pdo->prepare("
+                SELECT 1
+                  FROM user_companies
+                 WHERE user_id = ?
+                 LIMIT 1
+            ");
+            $stmt3->execute([$user['id']]);
+            $hasCompany = (bool) $stmt3->fetchColumn();
 
-            header('Location: calendar.php');
+            // Redirect based on membership
+            if ($hasCompany) {
+                header('Location: calendar.php');
+            } else {
+                header('Location: no_group.php');
+            }
             exit;
         }
     }
 }
+
 
 // REGISTER
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'register') {
