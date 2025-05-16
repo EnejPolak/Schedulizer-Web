@@ -1,3 +1,67 @@
+<?php
+// new_password.php
+session_start();
+require 'db_connect.php';
+
+$errors   = [];
+$token    = $_REQUEST['token'] ?? '';
+$email    = null;
+
+// Lookup & validate token on GET and POST
+if ($token) {
+    $stmt = $pdo->prepare("SELECT email, expires_at FROM password_resets WHERE token = ?");
+    $stmt->execute([$token]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (! $row) {
+        $errors[] = 'Invalid reset link.';
+    } elseif (strtotime($row['expires_at']) < time()) {
+        $errors[] = 'This reset link has expired.';
+    } else {
+        $email = $row['email'];
+    }
+} else {
+    $errors[] = 'No reset token provided.';
+}
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($errors)) {
+    $password        = $_POST['password']         ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
+
+    // Server-side validations
+    if (strlen($password) < 8) {
+        $errors[] = 'Password must be at least 8 characters long.';
+    }
+    if (! preg_match('/[A-Z]/', $password)) {
+        $errors[] = 'Password must contain at least one uppercase letter.';
+    }
+    if ($password !== $confirm_password) {
+        $errors[] = 'Passwords do not match.';
+    }
+
+    if (empty($errors)) {
+        // 1) Update the user’s password
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        $upd = $pdo->prepare("UPDATE users SET password_hash = ? WHERE email = ?");
+        $upd->execute([$hash, $email]);
+
+        // 2) Remove the token so it can’t be reused
+        $del = $pdo->prepare("DELETE FROM password_resets WHERE token = ?");
+        $del->execute([$token]);
+
+        // 3) Redirect to login with a “reset=1” flag
+        header("Location: login.php?reset=1");
+        exit;
+    }
+}
+$isGet  = $_SERVER['REQUEST_METHOD'] === 'GET';
+$isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
+
+// Show the form if...
+$showForm = ($isGet   && empty($errors))  // first time load, token ok
+    || ($isPost  && !empty($errors)); // form submitted but errors
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -217,38 +281,53 @@
         <div class="bubble lightblue"></div>
     </div>
 
-    <!-- main form -->
     <div class="reset-container">
         <div class="logo">SCHEDULIZER</div>
         <h2>Reset your password</h2>
 
-        <form id="passwordForm">
-            <div class="input-wrapper">
-                <input type="password" id="password" placeholder="Enter your password" required oninput="checkPasswords()">
-                <i class="fas fa-eye-slash eye-icon" onclick="togglePassword('password', this)"></i>
+        <?php if (!empty($errors)): ?>
+            <div class="error-box" style="color:red; text-align:center; margin-bottom:1em;">
+                <?= htmlspecialchars($errors[0]) ?>
             </div>
+        <?php endif; ?>
 
-            <div class="input-wrapper">
-                <input type="password" id="confirm_password" placeholder="Repeat your password" required oninput="checkPasswords()">
-                <i class="fas fa-eye-slash eye-icon" onclick="togglePassword('confirm_password', this)"></i>
-            </div>
+        <?php if ($showForm): ?>
+            <form id="passwordForm" action="" method="POST">
+                <!-- carry the token through POST -->
+                <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
 
-            <p id="mismatchWarning">Passwords do not match</p>
+                <div class="input-wrapper">
+                    <input type="password" id="password" name="password"
+                        placeholder="Enter your password" required
+                        oninput="checkPasswords()">
+                    <i class="fas fa-eye-slash eye-icon" onclick="togglePassword('password', this)"></i>
+                </div>
 
-            <ul>
-                <li id="lengthCheck" class="criteria-list"><i class="fas fa-check-circle"></i> At least 8 characters</li>
-                <li id="uppercaseCheck" class="criteria-list"><i class="fas fa-check-circle"></i> At least one uppercase letter</li>
-            </ul>
+                <div class="input-wrapper">
+                    <input type="password" id="confirm_password" name="confirm_password"
+                        placeholder="Repeat your password" required
+                        oninput="checkPasswords()">
+                    <i class="fas fa-eye-slash eye-icon" onclick="togglePassword('confirm_password', this)"></i>
+                </div>
 
-            <button type="submit" id="submitBtn" disabled>Confirm</button>
-        </form>
+                <p id="mismatchWarning">Passwords do not match</p>
+
+                <ul>
+                    <li id="lengthCheck" class="criteria-list"><i class="fas fa-check-circle"></i> At least 8 characters</li>
+                    <li id="uppercaseCheck" class="criteria-list"><i class="fas fa-check-circle"></i> At least one uppercase letter</li>
+                </ul>
+
+                <button type="submit" id="submitBtn" disabled>Confirm</button>
+            </form>
+        <?php endif; ?>
     </div>
 
     <script>
+        // your existing togglePassword and checkPasswords functions…
         function togglePassword(fieldId, icon) {
             const field = document.getElementById(fieldId);
-            const isPassword = field.type === "password";
-            field.type = isPassword ? "text" : "password";
+            const isPwd = field.type === "password";
+            field.type = isPwd ? "text" : "password";
             icon.classList.toggle("fa-eye");
             icon.classList.toggle("fa-eye-slash");
         }
@@ -256,46 +335,26 @@
         function checkPasswords() {
             const pass = document.getElementById("password").value;
             const confirm = document.getElementById("confirm_password").value;
-            const submitBtn = document.getElementById("submitBtn");
-            const passInput = document.getElementById("password");
-            const confirmInput = document.getElementById("confirm_password");
-            const warning = document.getElementById("mismatchWarning");
 
             const lengthCheck = document.getElementById("lengthCheck");
             const uppercaseCheck = document.getElementById("uppercaseCheck");
+            const warning = document.getElementById("mismatchWarning");
+            const submitBtn = document.getElementById("submitBtn");
 
             const validLength = pass.length >= 8;
             const hasUppercase = /[A-Z]/.test(pass);
-            const isConfirmLongEnough = confirm.length >= pass.length;
-            const match = pass === confirm && pass !== "";
+            const matches = pass === confirm && pass !== "";
 
-            // Show criteria
             lengthCheck.classList.toggle("valid", validLength);
             uppercaseCheck.classList.toggle("valid", hasUppercase);
 
-            // Matching logic only if confirm is long enough
             if (confirm.length === 0) {
                 warning.style.display = "none";
-                passInput.style.borderColor = "#ccc";
-                confirmInput.style.borderColor = "#ccc";
-            } else if (isConfirmLongEnough) {
-                if (match) {
-                    warning.style.display = "none";
-                    passInput.style.borderColor = "#28a745";
-                    confirmInput.style.borderColor = "#28a745";
-                } else {
-                    warning.style.display = "block";
-                    passInput.style.borderColor = "#dc3545";
-                    confirmInput.style.borderColor = "#dc3545";
-                }
             } else {
-                warning.style.display = "none";
-                passInput.style.borderColor = "#ccc";
-                confirmInput.style.borderColor = "#ccc";
+                warning.style.display = matches ? "none" : "block";
             }
 
-            // Enable button only if all checks pass
-            submitBtn.disabled = !(validLength && hasUppercase && match);
+            submitBtn.disabled = !(validLength && hasUppercase && matches);
         }
     </script>
 </body>

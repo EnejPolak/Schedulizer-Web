@@ -1,3 +1,62 @@
+<?php
+// reset_password.php
+session_start();
+require 'db_connect.php';
+
+$errors    = [];
+$showPopup = false;
+
+// Adjust this to your real domain/URL:
+$baseUrl = 'https://schedulizer.eu';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = trim($_POST['email'] ?? '');
+
+    // 1) basic format check
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Please enter a valid email address.';
+    } else {
+        // 2) does that email actually exist?
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user) {
+            $errors[] = 'User doesnt exist!';
+        } else {
+            // 3) generate & store a one-time token
+            $token     = bin2hex(random_bytes(16));
+            $expires   = date('Y-m-d H:i:s', time() + 3600); // 1h from now
+            $insert    = $pdo->prepare("
+                INSERT INTO password_resets (email, token, expires_at)
+                VALUES (?, ?, ?)
+            ");
+            $insert->execute([$email, $token, $expires]);
+
+            // 4) send the email
+            $resetLink = $baseUrl . '/new_password.php?token=' . $token;
+            $subject   = 'Your password reset link';
+            $message   = "Hi!\n\nWe received a request to reset your password. "
+                . "Click the link below to choose a new one:\n\n"
+                . "$resetLink\n\n"
+                . "If you didn’t request this, just ignore this message.\n\n"
+                . "Thanks,\nSchedulizer Team";
+            $headers   = 'From: no-reply@schedulizer.eu' . "\r\n"
+                . 'Reply-To: schedulizer@support.com' . "\r\n"
+                . 'X-Mailer: PHP/' . phpversion();
+
+            // the @ just silences mail-fail warnings; you could
+            // check the return value for true/false if you like:
+            $sent = mail($email, $subject, $message, $headers);
+            if (! $sent) {
+                $errors[] = 'Sorry, we couldn’t send the reset link right now. Please try again later.';
+            } else {
+                $showPopup = true;
+            }
+        }
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -212,37 +271,39 @@
         <div class="bubble lightblue"></div>
     </div>
 
-    <!-- main form -->
     <div class="reset-container">
         <div class="logo">SCHEDULIZER</div>
         <h2>Reset Password</h2>
 
-        <form id="resetForm">
+        <?php if (!empty($errors)): ?>
+            <div class="error-box" style="color:red; text-align:center; margin-bottom:1em;">
+                <?= htmlspecialchars($errors[0]) ?>
+            </div>
+        <?php endif; ?>
+
+        <form id="resetForm" action="" method="POST">
             <input type="email" name="email" placeholder="Enter your email" required>
-            <button type="submit"><i class="fas fa-envelope"></i>Send Reset Link</button>
+            <button type="submit">
+                <i class="fas fa-envelope"></i>Send Reset Link
+            </button>
         </form>
     </div>
 
-    <!-- ✅ popup -->
-    <div class="popup-overlay" id="popupOverlay">
+    <!-- POPUP OVERLAY -->
+    <div class="popup-overlay"
+        id="popupOverlay"
+        style="display: <?= $showPopup ? 'flex' : 'none' ?>;">
         <div class="popup-box">
             <span class="close-btn" onclick="closePopup()">&times;</span>
             <i class="fas fa-check-circle" style="color: #2b8a60; font-size: 40px;"></i>
-            <p>Reset link sent successfully.<br>Please check your inbox. </p>
+            <p>Reset link sent successfully.<br>Please check your inbox.</p>
         </div>
     </div>
 
+
     <script>
-        const form = document.getElementById('resetForm');
-        const popup = document.getElementById('popupOverlay');
-
-        form.addEventListener('submit', function(e) {
-            e.preventDefault(); // prevent actual submission
-            popup.style.display = 'flex';
-        });
-
         function closePopup() {
-            popup.style.display = 'none';
+            document.getElementById('popupOverlay').style.display = 'none';
         }
     </script>
 
