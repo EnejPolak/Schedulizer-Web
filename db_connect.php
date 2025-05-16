@@ -1,8 +1,8 @@
 <?php
-$host = 'localhost';              
-$db   = 'scheduli_primaryDatabase';     
-$user = 'scheduli_primaryDB';       
-$pass = 'RosercicPolak1209!';       
+$host = 'localhost';
+$db   = 'scheduli_primaryDatabase';
+$user = 'scheduli_primaryDB';
+$pass = 'RosercicPolak1209!';
 $charset = 'utf8mb4';
 
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
@@ -18,4 +18,3 @@ try {
 } catch (\PDOException $e) {
     die('Database connection failed: ' . $e->getMessage());
 }
-?>
